@@ -1,0 +1,92 @@
+---
+description: 招投标推送系统业务术语与数据库字段对照表、命名大小写约定（命名 / 写注释 / 写文案 / 定义类型时必读）
+alwaysApply: true
+enabled: true
+provider: project
+---
+
+# 项目规约 · 术语与字段对照
+
+> 写代码、写注释、写页面文案时，**必须使用下表的中文术语与英文标识**，不得自造同义词。
+> 出处：`docs/系统设计.md`、`docs/api-contract.md` §5、`n8n/sql/001_bid_schema.sql`。
+
+## 1. 五个核心实体
+
+| 中文术语 | 表名 | 接口类型 | 说明 |
+| --- | --- | --- | --- |
+| 公告 | `bid_announce` | `AnnounceListItem` / `AnnounceDetail` | 一条招投标信息的主记录 |
+| 公告详情 | `bid_detail` | `AnnounceDetail`（合并在同一响应） | 详情页抓取结果，一条公告最多一条 |
+| 订阅 | `bid_subscription` | `SubscriptionItem` | 客户订阅条件，应用侧唯一可写表 |
+| 抓取日志 | `bid_crawl_log` | `CrawlLogItem` | n8n 每轮抓取的审计记录 |
+| 推送记录 | `bid_push_log` | `PushLogItem` | 公告 × 订阅的推送结果，`uk_push` 保证不重发 |
+
+🔴 **禁止**使用「标讯」「招标信息表」「bidding」「tender」「notice」等自造同义词指代上述实体。
+
+## 2. 字段对照（snake_case ↔ camelCase）
+
+| 数据库列 | 接口字段 | 中文含义 | 备注 |
+| --- | --- | --- | --- |
+| `bid_announce.detail_url` | `detailUrl` | 详情链接 | 🔴 **全链路唯一键**，去重、幂等、跳转原文全用它 |
+| `bid_announce.announce_type` | `announceType` | 公告类型 | 见 §3 枚举 |
+| `bid_announce.announce_no` | `announceNo` | 公告编号 | 迁移 002 新增，可空 |
+| `bid_announce.publish_date` | `publishDate` | 发布日期 | 迁移 002 起为 `TIMESTAMPTZ` |
+| `bid_announce.source_site` | `sourceSite` | 来源站点 | 与飞书源站配置表的「站点名称」对应 |
+| `bid_announce.budget` | `budget` | 预算金额（元） | `numeric(18,2)`，可能以字符串返回 |
+| `bid_announce.crawl_status` | `crawlStatus` | 抓取状态 | 见 §3 枚举 |
+| `bid_announce.remark` | `remark` | 备注 | 失败原因等 |
+| `bid_detail.content_text` | `contentText` | 正文纯文本 | 返回前截断至 `CONTENT_TEXT_MAX_LENGTH` |
+| `bid_detail.structured` | `structured` | 结构化抽取结果 | JSONB，见 §4 |
+| `bid_detail.crawled_at` | `crawledAt` | 详情抓取时间 | |
+| `bid_subscription.name` | `name` | 订阅名称 | 迁移 002 新增 |
+| `bid_subscription.keyword` | `keyword` | 订阅关键词 | 多关键词用 `/` 分隔；空 = 不限 |
+| `bid_subscription.webhook_url` | `webhookUrl` | 推送地址 | 🔴 展示前必须 `maskWebhookUrl()` |
+| `bid_subscription.enabled` | `enabled` | 启用状态 | |
+| `bid_crawl_log.run_at` | `runAt` | 执行时间 | |
+| `bid_crawl_log.source_site` | `sourceSite` | 来源站点 | 迁移 002 新增 |
+| `bid_crawl_log.site_level` | `siteLevel` | 站点等级 | 迁移 002 新增，见 §3 |
+| `bid_crawl_log.total / success / failed / manual` | `total / success / failed / manual` | 总数 / 成功 / 失败 / 转待人工 | |
+| `bid_push_log.sent_at` | `sentAt` | 发送成功时间 | 失败时为 `NULL`，前端回退用 `createdAt` |
+| `bid_push_log.error_message` | `errorMessage` | 失败原因 | 成功时为空串 |
+| `bid_push_log.subscription_id` | `subscriptionId` + `subscriptionName` | 订阅 | `subscriptionName` 由嵌套 select 取回 |
+
+## 3. 状态与类型枚举（字符串取值，代码中一律引用常量）
+
+| 枚举 | 取值 | 常量位置 |
+| --- | --- | --- |
+| 公告类型 | 招标公告 / 中标公告 / 成交公告 / 竞争性磋商 / 询价公告 / 更正公告 / 其他 | `ANNOUNCE_TYPES` |
+| 抓取状态 | 待抓取 / 已入库 / 抓取失败 / 待人工 | `CRAWL_STATUSES` |
+| 推送状态 | 成功 / 失败 / 待重试 | `PUSH_STATUSES` |
+| 推送渠道 | `feishu_webhook` / `email` / `webhook` | `SUBSCRIPTION_CHANNELS` + `CHANNEL_LABELS` |
+| 站点等级 | A级 / B级 / C级 | `SITE_LEVELS` |
+
+均在 `lib/constants/domain.ts`。
+🔴 **禁止**在页面或组件里硬编码这些中文字面量，一律 `import` 常量或使用 `channelLabel()`。
+🔴 `site_level` **没有** CHECK 约束（刻意为之），可能为空串或意外取值 → 展示时用 `EMPTY_PLACEHOLDER`（`—`）。
+🔴 订阅空条件展示用 `UNLIMITED_LABEL`（不限）/ `ALL_TYPES_LABEL`（全部类型）。
+
+## 4. `structured` JSONB 的键
+
+| JSONB 键（snake_case） | 接口字段（camelCase） | 含义 |
+| --- | --- | --- |
+| `title` | `title` | 详情页标题 |
+| `purchaser` | `purchaser` | 采购人 |
+| `region` | `region` | 地区 |
+| `budget` | `budget` | 预算金额（元） |
+| `deadline` | `deadline` | 报名 / 投标截止时间 |
+| `contact_person` | `contactPerson` | 联系人 |
+| `contact_phone` | `contactPhone` | 联系电话 |
+| `agency` | `agency` | 代理机构 |
+| `summary` | `summary` | 正文摘要 |
+
+🔴 这是契约 §5 的唯一例外：**JSONB 内部键保持 snake_case**，映射只在 `lib/data/mappers.ts` 的 `mapStructured()` 里做。
+🔴 解析使用 `safeParse`，失败或全空时**降级为 `null`**，禁止抛错、禁止让整条公告详情失败。
+
+## 5. 大小写约定总表
+
+| 位置 | 约定 |
+| --- | --- |
+| 数据库列名、SQL | `snake_case` |
+| 接口 JSON 字段、TS 类型、变量、函数 | `camelCase` |
+| 常量 | `UPPER_SNAKE_CASE` |
+| React 组件 | `PascalCase` |
+| 路由路径 | kebab-case（`/push-logs`） |

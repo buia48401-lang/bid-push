@@ -1,0 +1,39 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - banner [ref=f1e3]:
+      - navigation "面包屑" [ref=f1e4]:
+        - link "首页" [ref=f1e5] [cursor=pointer]:
+          - /url: /
+        - generic [aria-hidden] [ref=f1e6]: /
+        - link "公告列表" [ref=f1e7] [cursor=pointer]:
+          - /url: /announces
+        - generic [aria-hidden] [ref=f1e8]: /
+        - generic [ref=f1e9]: 公告详情
+      - generic [ref=f1e10]:
+        - button "通知" [ref=f1e11] [cursor=pointer]
+        - generic [ref=f1e16]:
+          - generic [aria-hidden] [ref=f1e17]: 陈
+          - generic [ref=f1e18]: 陈钢
+    - generic [ref=f1e19]:
+      - complementary [ref=f1e20]:
+        - generic [ref=f1e21]:
+          - generic [aria-hidden] [ref=f1e22]: 招
+          - generic [ref=f1e23]: 招投标信息平台
+        - navigation "主导航" [ref=f1e24]:
+          - link "公告列表" [ref=f1e25] [cursor=pointer]:
+            - /url: /announces
+          - link "订阅管理" [ref=f1e29] [cursor=pointer]:
+            - /url: /subscriptions
+          - link "推送记录" [ref=f1e35] [cursor=pointer]:
+            - /url: /push-logs
+          - link "抓取日志" [ref=f1e41] [cursor=pointer]:
+            - /url: /crawl-logs
+      - main [ref=f1e47]:
+        - generic [ref=f1e49]:
+          - heading "公告详情" [level=1] [ref=f1e50]
+          - paragraph [ref=f1e51]: 数据来源：bid_announce
+        - generic [ref=f1e52]:
+          - paragraph [ref=f1e59]: 页面骨架已就绪
+          - paragraph [ref=f1e60]: "公告 #101 的基本信息、投标截止时间、正文摘要与「查看原文」将在页面模块中实现"
+  - button "Open Next.js Dev Tools" [ref=f1e66] [cursor=pointer]
+  - alert [ref=f1e70]

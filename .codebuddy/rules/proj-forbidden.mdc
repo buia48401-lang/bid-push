@@ -1,0 +1,66 @@
+---
+description: 招投标推送系统项目禁止事项清单（密钥、越权写入、抓取、状态篡改、契约外接口等红线，动手前必读）
+alwaysApply: true
+enabled: true
+provider: project
+---
+
+# 项目规约 · 禁止事项（红线清单）
+
+> 以下每条都是**硬红线**，没有「本次先例外」的余地。新增功能前先逐条自查。
+
+## 1. 🔴 凭据与越权
+
+| 禁止 | 说明 |
+| --- | --- |
+| 在 `components/**`、`app/**/page.tsx`、任何 Client Component 中出现 `SUPABASE_SERVICE_ROLE_KEY` | 高权限 key 只能存在于 `lib/supabase/admin.ts` |
+| 给 `SUPABASE_SERVICE_ROLE_KEY` 加 `NEXT_PUBLIC_` 前缀 | 加前缀即等于把它编进浏览器 bundle |
+| 在组件或 Client Component 中 `import '@supabase/supabase-js'` | 数据访问只能经 `lib/data/**` + Route Handler |
+| 移除 `lib/supabase/admin.ts` 顶部的 `import 'server-only'` | 这行是编译期护栏，删掉它等于失去防线 |
+| 把 `service_role` key 或完整 `webhook_url` 写进日志、错误响应、页面文本 | `webhook_url` 展示一律走 `maskWebhookUrl()` |
+| 在错误响应体里返回堆栈、SQL、内部路径 | `withRouteHandler` 已统一处理，禁止绕过 |
+
+## 2. 🔴 业务边界
+
+| 禁止 | 说明 |
+| --- | --- |
+| 应用侧发起到外部站点（WorkBuddy / 源站 / 招标网站）的网络请求 | 抓取是 n8n 的职责，应用只读 Supabase |
+| 应用侧写入 `bid_subscription` 之外的任何表 | 公告 / 详情 / 抓取日志 / 推送日志对应用**只读** |
+| 提供「立即抓取」「重新抓取」之类的触发入口 | 抓取节奏由 n8n 调度，页面按钮会越权 |
+| 提供「重新推送」「重发通知」的触发入口 | 推送由 n8n 执行且靠 `uk_push` 幂等，应用重发会破坏幂等 |
+| 自动修改 `crawl_status`（尤其把 `待人工` 改成其它值） | `待人工` 的语义是「需人处理」，只能人工改 |
+| 调整推送顺序（发消息 → 写库 → 记日志 / 先记日志后发送） | 固定为 **写库 → 发消息 → 记推送日志** |
+
+## 3. 🔴 契约
+
+| 禁止 | 说明 |
+| --- | --- |
+| 新增 / 修改接口路径 | 契约只有 7 条，见 `proj-nextjs-stack` §3 |
+| 新增错误码（含 501 Not Implemented） | 只有 `0 / 400 / 404 / 500 / 503` |
+| 修改响应信封字段名或结构 | `{ code, message, data, traceId }` 逐字固定 |
+| 新增数据库表 | 只有 5 张表；源站配置在飞书，不做 `bid_source` 镜像 |
+| 修改 `docs/` 下任何文件 | 🔴 `docs/` 是只读事实源，设计变更需先改文档并经人确认 |
+| 修改 `n8n/sql/001_bid_schema.sql` | 基线脚本，结构变更新建 `003_xxx.sql` |
+| 返回假数据 / 空数组冒充业务结果 | 未实现的查询体用 `unimplemented('<章节>')` |
+
+## 4. 🔴 代码
+
+| 禁止 | 说明 |
+| --- | --- |
+| `select('*')` | 必须显式列出契约列 |
+| 在 `components/**`、`app/**/page.tsx` 里硬编码十六进制色值 | 色值只允许写在 `app/globals.css` 的 token 定义处；静态图标资源（如 `app/icon.svg`）例外 |
+| 在页面或组件里硬编码业务中文字面量（`'待人工'`、`'招标公告'`） | 一律引用 `lib/constants/domain.ts` |
+| 在 `app/api/**/route.ts` 里手写 `NextResponse.json` / `try-catch` / `traceId` | 统一走 `withRouteHandler` |
+| 组件模拟输入框 / 按钮（`<div onClick>` 当按钮用） | 必须用 `<input>` / `<button>` |
+| 在 `lib/**`、`types/**` 中 import `app/**` 或 `components/**` | 依赖方向单向，见 `proj-layer-boundary` |
+| 用 `any` 消除类型错误 | 用 `unknown` + 收窄，或补正确的类型定义 |
+| 引入第二套 UI 框架 / 状态库 / 请求库 | 当前只有 shadcn/ui + `fetch`，需要新增须先改本文件 |
+| 使用 `next/font/google` | 构建期需联网，离线即失败；字体栈在 `tailwind.config.ts` 的 `fontFamily.sans`，由 `app/layout.tsx` 用 `<link>` 运行时加载 |
+| 提交 `.env.local`、密钥、真实 webhook 地址 | 只提交 `.env.example` 占位 |
+
+## 5. 🔴 页面范围（本期约束）
+
+| 禁止 | 说明 |
+| --- | --- |
+| 在 `lib/data/**` 未实现时先写页面的表格 / 筛选 / 分页 | 会产生大量临时代码；先实现数据层 |
+| 跳过 `npm run lint && npm run typecheck && npm run build` 就宣告完成 | 三者是验收命令 |

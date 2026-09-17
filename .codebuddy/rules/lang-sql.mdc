@@ -1,0 +1,326 @@
+---
+description: SQL 通用规范——命名/类型/索引/事务隔离/通用 DDL 与 DML 模板,跨数据库(MySQL/PG/Oracle)通用层
+alwaysApply: false
+globs: **/*.sql
+enabled: true
+provider: project
+---
+
+# SQL 通用规范（lang-sql）
+
+> 本文件是 **跨数据库通用** SQL 规范。
+
+> ⚠️ **本项目差异(优先于下文通用规则)**:
+> 1. 数据库为 **PostgreSQL / Supabase**;下文 MySQL 语法仅作跨库参考,落地一律 PG 语法(标识符小写、`COMMENT ON`、`BOOLEAN`、`JSONB`、`TIMESTAMPTZ`)
+> 2. 表结构唯一维护副本在 `n8n/sql/`(001 基线 + 002 增量);🔴 基线 `001_bid_schema.sql` 不可修改,结构变更一律新建 `003_xxx.sql`,且必须幂等 + 附反向 SQL
+> 3. §三「必备审计字段」与 §六「逻辑删除」**不是**本项目约定——5 张表的字段以 `001 / 002` 为准,推送幂等靠 `uk_push` 约束,不靠 deleted 位
+> 4. 🔴 禁止新增表(全库仅 `bid_announce` / `bid_detail` / `bid_subscription` / `bid_crawl_log` / `bid_push_log` 5 张);业务枚举取值见 `lib/constants/domain.ts`,禁止在库里私加状态值
+> 5. 应用侧对 `bid_subscription` 之外的表**只读**,不得发起任何 DML
+
+---
+
+## 一、命名约定
+
+### 1.1 标识符
+
+| 对象 | 命名 | 例 |
+|------|------|------|
+| 表名 | `{module}_{business}` 全小写下划线 | `erp_supplier`、`user_order` |
+| 字段 | 全小写下划线分隔 | `user_name`、`create_time` |
+| 主键 | `id` | — |
+| 外键 | `{ref_table_singular}_id` | `user_id` / `order_item_id` |
+| 枚举字段 | 后缀 `_type` / `_status` | `biz_type` / `order_status` |
+| 布尔字段 | `is_xxx` / `xxx_flag` | `is_deleted` / `enabled_flag` |
+| 时间字段 | `xxx_time` / `xxx_at` | `create_time` / `paid_at` |
+| 索引 | `idx_{table}_{cols}` | `idx_order_user_id` |
+| 唯一索引 | `uk_{table}_{cols}` | `uk_user_email` |
+| 主键索引 | `pk_{table}` | `pk_order` |
+| 触发器 | `trg_{table}_{action}` | `trg_order_after_update` |
+| 视图 | `vw_{purpose}` | `vw_user_with_profile` |
+| 存储过程 | `sp_{action}_{target}` | `sp_calc_order_total` |
+
+### 1.2 大小写与引号
+
+| 数据库 | 标识符 | 字符串 |
+|--------|--------|--------|
+| MySQL / MariaDB | 全小写,反引号包裹 `` `user` `` | 单引号 `'text'` |
+| PostgreSQL | 全小写,双引号 `"user"` | 单引号 |
+| Oracle | 全大写,可不用引号 | 单引号 |
+| SQL Server | PascalCase 或全小写,`[user]` | 单引号 |
+
+> 团队统一选择,跨数据库迁移时格外注意。
+
+### 1.3 🔴 命名红线
+
+- ❌ **禁止** 大小写混用、无下划线(`UserName`)
+- ❌ **禁止** 拼音或缩写(除业内通用的 `id` / `no` / `biz`)
+- ❌ **禁止** 用 SQL 关键字作为标识符(`order` / `user` 必须引号包裹)
+- ❌ **禁止** 表名带前缀 `t_`(表本身不需要前缀标识)
+
+---
+
+## 二、字段类型与规范
+
+### 2.1 常用类型映射
+
+| 用途 | MySQL | PostgreSQL | Oracle |
+|------|-------|-----------|--------|
+| 整数主键 | `BIGINT` | `BIGSERIAL` / `BIGINT` | `NUMBER(19)` |
+| 短整数 | `TINYINT` / `SMALLINT` | `SMALLINT` | `NUMBER(3)` |
+| 字符串(短) | `VARCHAR(n)` | `VARCHAR(n)` | `VARCHAR2(n)` |
+| 长文本 | `TEXT` | `TEXT` | `CLOB` |
+| 时间 | `DATETIME` / `TIMESTAMP` | `TIMESTAMP` / `TIMESTAMPTZ` | `TIMESTAMP` |
+| 日期 | `DATE` | `DATE` | `DATE` |
+| 金额 | `DECIMAL(M, D)` | `NUMERIC(M, D)` | `NUMBER(M, D)` |
+| 布尔 | `TINYINT(1)` / `BIT` | `BOOLEAN` | `NUMBER(1)` |
+| JSON | `JSON` | `JSONB` | `CLOB` / `JSON_OBJECT_T` |
+| UUID | `CHAR(36)` / `BINARY(16)` | `UUID` | `RAW(16)` |
+
+### 2.2 通用字段建议
+
+| 场景 | 类型 |
+|------|------|
+| 金额 | 🔴 **必须** `DECIMAL(M, D)`,**禁用** `FLOAT` / `DOUBLE` |
+| 状态枚举 | `TINYINT` / `SMALLINT`,**禁用** `VARCHAR` |
+| 大文本 | `TEXT`,**禁止** `VARCHAR(8000)` |
+| 时间 | `DATETIME` / `TIMESTAMP`,**禁止** `VARCHAR` |
+| 主键 | 🔴 **必须** 显式类型,不要用数据库默认值 |
+
+### 2.3 🔴 字段红线
+
+- ❌ 金额用 `FLOAT` / `DOUBLE`(`0.1 + 0.2 != 0.3`)
+- ❌ 时间用 `VARCHAR`(占空间 + 难排序)
+- ❌ 主键用 UUID 字符串(占空间、索引效率差)
+- ✅ 金额统一小数位(项目内统一 2 / 4 位)
+- ✅ 时间字段统一 `DATETIME`(不带时区)
+
+---
+
+## 三、必备审计字段(每张业务表)
+
+```sql
+id           BIGINT       NOT NULL PRIMARY KEY,
+tenant_id    BIGINT       NOT NULL DEFAULT 0  COMMENT '租户ID',
+creator      VARCHAR(64)  NOT NULL DEFAULT '' COMMENT '创建者',
+create_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+updater      VARCHAR(64)  NOT NULL DEFAULT '' COMMENT '更新者',
+update_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+deleted      BIT(1)       NOT NULL DEFAULT b'0'  COMMENT '逻辑删除:0-正常 1-已删'
+```
+
+### 3.1 审计字段红线
+
+- 🔴 **必须** 每张业务表有 `creator` / `create_time` / `updater` / `update_time` / `deleted`
+- 🔴 **必须** 多租户表有 `tenant_id`
+- 🔴 **必须** `deleted` 是 `BIT(1)` / `BOOLEAN`(不是 `TINYINT`)
+- 🔴 **禁止** 业务表不带审计字段
+
+---
+
+## 四、索引策略
+
+### 4.1 通用原则
+
+| 原则 | 说明 |
+|------|------|
+| 单表索引数 | ≤ 5 个 |
+| 联合索引最左前缀 | 设计索引时考虑查询顺序 |
+| 选择性低字段 | 不单独建索引(性别 / 类型) |
+| 外键 | 必须有索引 |
+| 主键 | 默认主键索引 |
+
+### 4.2 索引类型选择
+
+| 场景 | 索引 |
+|------|------|
+| 等值查询 | B-Tree 默认 |
+| 范围查询 | B-Tree |
+| JSON 字段路径查询 | JSON 函数索引(MySQL 8 / PG) |
+| 全文搜索 | FULLTEXT(MySQL)/ GIN(PG) |
+| 地理空间 | SPATIAL |
+
+### 4.3 索引命名
+
+- 普通索引:`idx_{table}_{column1}_{column2}_...`
+- 唯一索引:`uk_{table}_{column1}_{column2}_...`
+- 主键索引:`pk_{table}`
+
+> 严禁用数据库自带的命名(`PRIMARY` / `FKxxx`)作为索引引用。
+
+### 4.4 🔴 索引红线
+
+- ❌ 重复索引(如 `uk_user_email` 同时还有 `idx_user_email`)
+- ❌ 索引列函数包裹:`WHERE YEAR(create_time) = 2024`(应改成范围)
+- ❌ 索引列 ORDER BY 方向错乱(可考虑反向索引或 `DESC` 索引)
+- ❌ 单表索引 > 10 个
+
+---
+
+## 五、建表 DDL 模板
+
+### 5.1 MySQL 标准模板
+
+```sql
+-- =============================================
+-- 表名: erp_supplier
+-- 说明: 供应商主表
+-- 作者: 张三
+-- 创建日期: 2026-08-25
+-- =============================================
+CREATE TABLE `erp_supplier` (
+  `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `tenant_id`   BIGINT       NOT NULL DEFAULT 0          COMMENT '租户编号',
+  `name`        VARCHAR(128) NOT NULL                  COMMENT '供应商名称',
+  `code`        VARCHAR(64)  NOT NULL DEFAULT ''         COMMENT '供应商编码',
+  `status`      TINYINT      NOT NULL DEFAULT 0          COMMENT '状态:0-待审 1-合作中 2-已禁用',
+  `mobile`      VARCHAR(20)  DEFAULT NULL                COMMENT '联系电话',
+  `email`       VARCHAR(128) DEFAULT NULL                COMMENT '邮箱',
+  `remark`      VARCHAR(512) DEFAULT NULL                COMMENT '备注',
+  `creator`     VARCHAR(64)  NOT NULL DEFAULT ''         COMMENT '创建者',
+  `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater`     VARCHAR(64)  NOT NULL DEFAULT ''         COMMENT '更新者',
+  `update_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted`     BIT(1)       NOT NULL DEFAULT b'0'       COMMENT '逻辑删除:0-正常 1-已删',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_erp_supplier_code` (`tenant_id`, `code`),
+  KEY `idx_erp_supplier_status` (`tenant_id`, `status`),
+  KEY `idx_erp_supplier_create_time` (`tenant_id`, `create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='供应商主表';
+```
+
+### 5.2 PostgreSQL 标准模板
+
+```sql
+CREATE TABLE erp_supplier (
+  id            BIGSERIAL PRIMARY KEY,
+  tenant_id     BIGINT NOT NULL DEFAULT 0,
+  name          VARCHAR(128) NOT NULL,
+  code          VARCHAR(64) NOT NULL DEFAULT '',
+  status        SMALLINT NOT NULL DEFAULT 0,
+  -- ... 同上
+  deleted       BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE UNIQUE INDEX uk_erp_supplier_code ON erp_supplier (tenant_id, code);
+CREATE INDEX idx_erp_supplier_status ON erp_supplier (tenant_id, status);
+COMMENT ON TABLE erp_supplier IS '供应商主表';
+COMMENT ON COLUMN erp_supplier.name IS '供应商名称';
+```
+
+---
+
+## 六、逻辑删除(🔴 红线)
+
+- 🔴 **禁止物理删除**任何业务数据
+- 🔴 查询必须过滤 `WHERE deleted = 0` / `WHERE deleted = FALSE`(框架自动可)
+- 🔴 唯一约束必须考虑 `deleted`(联合 `tenant_id + 业务键` 或 `deleted = 0` 过滤)
+
+```sql
+-- ✅ 推荐逻辑删除
+UPDATE user SET deleted = 1, update_time = NOW() WHERE id = 999;
+SELECT * FROM user WHERE deleted = 0;        -- 框架自动加
+
+-- ❌ 禁止物理删除
+DELETE FROM user WHERE id = 999;
+```
+
+---
+
+## 七、SQL 编写红线(🔴)
+
+| 行为 | 红线 |
+|------|------|
+| 🔴 SELECT * | **禁止**,必须显式列名 |
+| 🔴 隐式类型转换 | `WHERE id = '123'`(id 是 BIGINT)禁止 |
+| 🔴 函数索引列 | `WHERE DATE(create_time) = '2024-01-01'` |
+| 🔴 OR 滥用 | `WHERE status = 1 OR status = 2` 用 `IN` |
+| 🔴 JOIN 笛卡尔积 | 多表 JOIN 没条件 |
+| 🔴 嵌套子查询过深 | > 3 层改 JOIN / CTE |
+| 🔴 LIMIT 大数 | `LIMIT 1000000`(应分页 / 异步) |
+| 🔴 字符串拼接 IN | `id IN ('1,2,3')` 应 `id IN (1, 2, 3)` |
+
+### 7.1 推荐写法
+
+- 复杂查询用 CTE(WITH 子句)
+- 分页用 `LIMIT + OFFSET`(小数据) / 游标(大数据)
+- 批量 INSERT 用多值语法:
+  ```sql
+  INSERT INTO user (username, status) VALUES
+    ('alice', 1),
+    ('bob', 1),
+    ('carol', 1);
+  ```
+
+---
+
+## 八、事务与隔离
+
+### 8.1 隔离级别选择
+
+| 场景 | 隔离级别 |
+|------|----------|
+| 严格一致性(账务) | `SERIALIZABLE` |
+| 防止不可重复读 | `REPEATABLE READ`(MySQL 默认) |
+| 防止脏读 | `READ COMMITTED`(PG/Oracle 默认) |
+| 高并发最终一致 | `READ UNCOMMITTED` |
+
+### 8.2 事务原则
+
+- 🔴 **禁止** 长事务(交互式事务 / 跨多服务)
+- 🔴 **禁止** 在事务内做远程调用(HTTP / RPC)
+- ✅ 短事务 + 显式 commit / rollback
+- ✅ 多个事务操作按相同顺序加锁,避免死锁
+- ✅ 大事务拆小事务 + 幂等 + 补偿
+
+---
+
+## 九、数据迁移四步法
+
+详见 `11-batch-ops.mdc`,SQL 视角的迁移原则:
+
+```
+[1] 表结构迁移:DDL 差异报告 + 反向 SQL 备份
+[2] 数据迁移:批量 INSERT,分批 ≤ 500,主键冲突处理
+[3] 数据验证:行数 / 非空率 / 抽样核对
+[4] 字典映射:旧状态码 → 新字典
+```
+
+### 9.1 风险清单
+
+- 加密算法不兼容(旧 MD5 → 新 BCrypt)
+- 字典值差异(旧状态码 → 新状态码)
+- 主键冲突(旧 `contract_id` → 新 `id`)
+- `tenant_id` 缺失(必须显式填充默认 0 或正确值)
+- 时间类型不兼容(`Date` → `LocalDateTime`)
+
+---
+
+## 十、SQL 文件组织
+
+```
+sql/
+├── init/                        # 初始化脚本(按依赖顺序)
+│   ├── 01-schema.sql
+│   ├── 02-data.sql
+│   └── 03-menu.sql
+├── update/                      # 增量更新(按日期)
+│   └── YYYYMMDD_<module>_<desc>.sql
+├── migration/                   # 数据迁移
+│   ├── YYYYMMDD_<from>_<to>/
+│   │   ├── 01-schema.sql
+│   │   ├── 02-data.sql
+│   │   └── 03-verify.sql
+│   └── verify/
+```
+
+每个 SQL 文件头部必须说明:
+- 表名 / 改动对象
+- 改动说明
+- 作者、日期
+- 反向 SQL(若改动可逆)
+
+---
+
+## 十一、一句话总结
+
+> **命名规范 + 类型正确 + 审计字段齐备 + 索引命名规范 + 禁止 SELECT * + 禁止物理删除 + 短事务**。SQL 一行错,库一库崩。

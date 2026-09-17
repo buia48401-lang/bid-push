@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>招投标信息平台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --brand: #0052D9;
+  --brand-bg: #F2F3FF;
+  --bg-page: #EEEEEE;
+  --card: #FFFFFF;
+  --text-1: #1A1A1A;
+  --text-2: #666666;
+  --text-3: #999999;
+  --border: #DEDEDE;
+  --divider-top: #DDDDDD;
+  --row-line: #E8E8E8;
+  --th-bg: #F3F3F3;
+  --success: #2BA471;
+  --success-bg: #E3F9E9;
+  --warn: #E37318;
+  --warn-bg: #FFF1E9;
+  --error: #D54941;
+  --error-bg: #FFF0ED;
+  --radius-ctl: 3px;
+  --radius-card: 6px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #3a3d42; }
+body {
+  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
+  color: var(--text-1);
+}
+
+/* ===== 等比缩放舞台：1440×900 原始画布 ===== */
+#stage {
+  position: absolute;
+  width: 1440px;
+  height: 900px;
+  transform-origin: top left;
+  background: var(--bg-page);
+}
+
+/* ===== 页面切换 ===== */
+.app-page {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .35s ease;
+}
+.app-page.active { opacity: 1; pointer-events: auto; }
+
+/* ===== 顶栏 ===== */
+.topbar {
+  width: 100%;
+  height: 56px;
+  flex: none;
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+}
+.topbar .crumb { font-size: 14px; color: var(--text-3); }
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.topbar-right .divider { width: 1px; height: 16px; background: var(--divider-top); }
+.avatar {
+  width: 28px; height: 28px; border-radius: 999px;
+  background: var(--brand); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 500;
+}
+.topbar-right .uname { font-size: 14px; color: var(--text-1); }
+
+/* ===== 主体 ===== */
+.body-area { display: flex; flex: 1; min-height: 0; background: var(--bg-page); }
+
+/* ===== 侧边导航 ===== */
+.sidebar {
+  width: 240px; flex: none;
+  background: var(--card);
+  display: flex; flex-direction: column;
+}
+.logo-block { height: 56px; flex: none; display: flex; align-items: center; gap: 10px; padding-left: 20px; }
+.logo-mark {
+  width: 28px; height: 28px; border-radius: 6px; flex: none;
+  background: linear-gradient(135deg, #1C52D9 0%, #0052D9 100%);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 14px; font-weight: 700;
+}
+.logo-name { font-size: 15px; font-weight: 600; color: var(--text-1); }
+.menu { padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+.menu-item {
+  height: 40px; border-radius: var(--radius-ctl);
+  display: flex; align-items: center; gap: 10px;
+  padding-left: 12px; cursor: pointer; user-select: none;
+  background: transparent;
+}
+.menu-item .indicator { width: 3px; height: 16px; border-radius: 2px; background: transparent; flex: none; }
+.menu-item .mi-icon { width: 16px; height: 16px; flex: none; display: flex; align-items: center; justify-content: center; }
+.menu-item .mi-text { font-size: 14px; color: var(--text-2); font-weight: 400; }
+.menu-item:hover:not(.active) { background: #F5F5F5; }
+.menu-item.active { background: var(--brand-bg); }
+.menu-item.active .indicator { background: var(--brand); }
+.menu-item.active .mi-text { color: var(--brand); font-weight: 500; }
+
+/* ===== 内容区 ===== */
+.content {
+  flex: 1; min-width: 0;
+  padding: 24px;
+  display: flex; flex-direction: column; gap: 16px;
+  background: var(--bg-page);
+}
+.title-row { display: flex; align-items: center; justify-content: space-between; }
+.title-group { display: flex; flex-direction: column; gap: 4px; }
+.page-title { font-size: 20px; font-weight: 600; color: var(--text-1); }
+.page-source { font-size: 12px; color: var(--text-3); }
+
+/* ===== 卡片 ===== */
+.card { background: var(--card); border-radius: var(--radius-card); }
+
+/* ===== 按钮 ===== */
+.btn {
+  width: 88px; height: 32px; border-radius: var(--radius-ctl);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px; cursor: pointer; border: none; font-family: inherit;
+}
+.btn-primary { background: var(--brand); color: #fff; }
+.btn-primary:hover { background: #0046BB; }
+.btn-default { background: var(--card); color: var(--text-1); border: 1px solid var(--border); }
+.btn-default:hover { border-color: var(--brand); color: var(--brand); }
+
+/* ===== 标签 ===== */
+.tag {
+  display: inline-flex; align-items: center;
+  height: 22px; padding: 0 8px; border-radius: var(--radius-ctl);
+  font-size: 12px; font-weight: 500; white-space: nowrap;
+}
+.tag-brand { background: var(--brand-bg); color: var(--brand); }
+.tag-success { background: var(--success-bg); color: var(--success); }
+.tag-warn { background: var(--warn-bg); color: var(--warn); }
+.tag-error { background: var(--error-bg); color: var(--error); }
+.tag-muted { background: var(--th-bg); color: var(--text-2); font-weight: 400; }
+
+/* ===== 筛选区 ===== */
+.filter-card { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.filter-row { display: flex; align-items: center; gap: 12px; }
+.filter-label { font-size: 14px; color: var(--text-1); }
+.input-box {
+  height: 32px; border-radius: var(--radius-ctl);
+  border: 1px solid var(--border); background: var(--card);
+  display: flex; align-items: center; padding-left: 10px;
+  font-size: 14px; font-family: inherit;
+}
+.input-box input { border: none; outline: none; font-size: 14px; font-family: inherit; color: var(--text-1); width: 100%; background: transparent; }
+.input-box input::placeholder { color: var(--text-3); }
+.input-box.select { cursor: pointer; color: var(--text-3); }
+.input-box.filled { color: var(--text-1); }
+
+/* ===== 表格 ===== */
+.table-card { padding: 16px; }
+.thead {
+  height: 40px; background: var(--th-bg);
+  display: flex; align-items: center;
+  padding: 0 12px;
+}
+.thead .th { font-size: 14px; font-weight: 500; color: var(--text-1); white-space: nowrap; }
+.trow {
+  height: 48px; display: flex; align-items: center;
+  padding: 0 12px; background: var(--card);
+}
+.trow-line { height: 1px; background: var(--row-line); }
+.td { font-size: 14px; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-dim { color: var(--text-2); }
+.td-muted { color: var(--text-3); }
+.link { color: var(--brand); cursor: pointer; }
+.link:hover { text-decoration: underline; }
+.op-link { color: var(--brand); cursor: pointer; font-size: 14px; }
+.op-link.danger { color: var(--error); }
+.op-link:hover { text-decoration: underline; }
+.col-flex { flex: 1; min-width: 0; }
+
+/* ===== 分页 ===== */
+.pager-row { padding-top: 16px; display: flex; align-items: center; justify-content: space-between; }
+.pager-info { font-size: 12px; color: var(--text-2); }
+.pager-group { display: flex; align-items: center; gap: 8px; }
+.pg {
+  width: 24px; height: 24px; border-radius: var(--radius-ctl);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; background: var(--card); border: 1px solid var(--border);
+  color: var(--text-1); cursor: pointer;
+}
+.pg.current { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 500; }
+.pg.ellipsis { border: none; background: transparent; color: var(--text-3); cursor: default; }
+
+/* ===== 详情页 ===== */
+.detail-title-group { display: flex; flex-direction: column; gap: 8px; }
+.detail-title-line { display: flex; align-items: center; gap: 12px; }
+.detail-title { font-size: 18px; font-weight: 600; color: var(--text-1); }
+.detail-meta { font-size: 12px; color: var(--text-3); }
+.info-card { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.card-title { font-size: 16px; font-weight: 500; color: var(--text-1); }
+.field-grid { display: flex; flex-wrap: wrap; gap: 24px 24px; }
+.field { width: 350px; display: flex; flex-direction: column; gap: 6px; }
+.field-label { font-size: 12px; color: var(--text-3); }
+.field-value { font-size: 14px; color: var(--text-1); }
+.field-value.strong { font-weight: 500; }
+.field-value.danger { font-weight: 500; color: var(--error); }
+.summary-card { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.summary-head { display: flex; align-items: center; justify-content: space-between; }
+.summary-note { font-size: 12px; color: var(--text-3); }
+.para { font-size: 14px; line-height: 24px; color: var(--text-1); }
+
+/* ===== 统计卡 ===== */
+.stats-row { display: flex; gap: 16px; }
+.stat-card { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.stat-label { font-size: 12px; color: var(--text-3); }
+.stat-value { font-size: 24px; font-weight: 600; color: var(--text-1); }
+.stat-value.green { color: var(--success); }
+.stat-value.red { color: var(--error); }
+
+/* ===== 开关 ===== */
+.switch {
+  width: 36px; height: 20px; border-radius: 999px; position: relative;
+  cursor: pointer; transition: background .2s;
+}
+.switch.on { background: var(--brand); }
+.switch.off { background: #C6C6C6; }
+.switch .knob {
+  position: absolute; top: 2px; width: 16px; height: 16px;
+  border-radius: 999px; background: #fff; transition: left .2s;
+}
+.switch.on .knob { left: 18px; }
+.switch.off .knob { left: 2px; }
+
+/* ===== 底部页面导航 ===== */
+#deck-nav {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(26,26,26,.72); backdrop-filter: blur(6px);
+  border-radius: 999px; padding: 6px 10px; z-index: 100;
+}
+#deck-nav .nav-btn {
+  width: 26px; height: 26px; border-radius: 999px; border: none; cursor: pointer;
+  background: rgba(255,255,255,.14); color: #fff; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+#deck-nav .nav-btn:hover { background: rgba(255,255,255,.28); }
+#deck-nav .dot {
+  padding: 4px 12px; border-radius: 999px; font-size: 12px; cursor: pointer;
+  color: rgba(255,255,255,.65); background: transparent; border: none; font-family: inherit;
+}
+#deck-nav .dot.current { background: var(--brand); color: #fff; }
+</style>
+</head>
+<body>
+
+<div id="stage">
+
+  <!-- ============ 页面 1：公告列表 ============ -->
+  <section class="app-page active" id="page1" data-menu="list">
+    <header class="topbar" data-crumb="首页 / 公告列表"></header>
+    <div class="body-area">
+      <aside class="sidebar"></aside>
+      <main class="content">
+        <div class="title-row">
+          <div class="title-group">
+            <div class="page-title">公告列表</div>
+            <div class="page-source">数据来源：bid_announce · 今日新增 32 条</div>
+          </div>
+        </div>
+        <div class="card filter-card">
+          <div class="filter-row">
+            <span class="filter-label">关键词</span>
+            <div class="input-box" style="width:220px;"><input type="text" placeholder="请输入公告标题关键词"></div>
+            <span class="filter-label">地区</span>
+            <div class="input-box select" style="width:140px;">全部地区</div>
+            <span class="filter-label">公告类型</span>
+            <div class="input-box select" style="width:140px;">全部类型</div>
+          </div>
+          <div class="filter-row">
+            <span class="filter-label">发布时间</span>
+            <div class="input-box filled" style="width:240px;">2026-09-01 ~ 2026-09-16</div>
+            <button class="btn btn-primary">查询</button>
+            <button class="btn btn-default">重置</button>
+          </div>
+        </div>
+        <div class="card table-card">
+          <div class="thead">
+            <div class="th col-flex">公告标题</div>
+            <div class="th" style="width:88px;">类型</div>
+            <div class="th" style="width:150px;">采购人</div>
+            <div class="th" style="width:90px;">地区</div>
+            <div class="th" style="width:110px;">预算（万元）</div>
+            <div class="th" style="width:110px;">发布时间</div>
+            <div class="th" style="width:80px;">操作</div>
+          </div>
+          <div class="trow">
+            <div class="td col-flex link goto-detail">广州市智慧城市大数据中心平台建设项目招标公告</div>
+            <div style="width:88px;"><span class="tag tag-brand">招标公告</span></div>
+            <div class="td" style="width:150px;">广州市政数局</div>
+            <div class="td" style="width:90px;">广东广州</div>
+            <div class="td" style="width:110px;">3,500.00</div>
+            <div class="td td-dim" style="width:110px;">2026-09-15</div>
+            <div class="td" style="width:80px;"><span class="link goto-detail">查看详情</span></div>
+          </div>
+          <div class="trow-line"></div>
+          <div class="trow">
+            <div class="td col-flex link goto-detail">天河区智慧校园一期工程中标结果公示</div>
+            <div style="width:88px;"><span class="tag tag-success">中标公告</span></div>
+            <div class="td" style="width:150px;">天河区教育局</div>
+            <div class="td" style="width:90px;">广东广州</div>
+            <div class="td" style="width:110px;">1,280.00</div>
+            <div class="td td-dim" style="width:110px;">2026-09-14</div>
+            <div class="td" style="width:80px;"><span class="link goto-detail">查看详情</span></div>
+          </div>
+          <div class="trow-line"></div>
+          <div class="trow">
+            <div class="td col-flex link goto-detail">白云区智慧停车场项目变更公告（延期开标）</div>
+            <div style="width:88px;"><span class="tag tag-warn">变更公告</span></div>
+            <div class="td" style="width:150px;">白云区交通运输局</div>
+            <div class="td" style="width:90px;">广东广州</div>
+            <div class="td" style="width:110px;">2,100.00</div>
+            <div class="td td-dim" style="width:110px;">2026-09-13</div>
+            <div class="td" style="width:80px;"><span class="link goto-detail">查看详情</span></div>
+          </div>
+          <div class="trow-line"></div>
+          <div class="trow">
+            <div class="td col-flex link goto-detail">黄埔区政务云资源扩容采购项目招标公告</div>
+            <div style="width:88px;"><span class="tag tag-brand">招标公告</span></div>
+            <div class="td" style="width:150px;">黄埔区政数中心</div>
+            <div class="td" style="width:90px;">广东广州</div>
+            <div class="td" style="width:110px;">860.00</div>
+            <div class="td td-dim" style="width:110px;">2026-09-12</div>
+            <div class="td" style="width:80px;"><span class="link goto-detail">查看详情</span></div>
+          </div>
+          <div class="pager-row">
+            <div class="pager-info">共 1,248 条记录 · 每页 20 条</div>
+            <div class="pager-group">
+              <span class="pg current">1</span>
+              <span class="pg">2</span>
+              <span class="pg">3</span>
+              <span class="pg ellipsis">···</span>
+              <span class="pg" title="下一页"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 7l5 5-5 5" stroke="#666666" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </section>
+
+  <!-- ============ 页面 2：公告详情 ============ -->
+  <section class="app-page" id="page2" data-menu="list">
+    <header class="topbar" data-crumb="首页 / 公告列表 / 公告详情"></header>
+    <div class="body-area">
+      <aside class="sidebar"></aside>
+      <main class="content">
+        <div class="title-row">
+          <div class="detail-title-group">
+            <div class="detail-title-line">
+              <span class="detail-title">广州市智慧城市大数据中心平台建设项目招标公告</span>
+              <span class="tag tag-brand">招标公告</span>
+            </div>
+            <div class="detail-meta">来源：中国政府采购网 · 发布时间：2026-09-15 09:30 · 公告编号：GZGP-2026-091501</div>
+          </div>
+          <button class="btn btn-default">查看原文</button>
+        </div>
+        <div class="card info-card">
+          <div class="card-title">基本信息</div>
+          <div class="field-grid">
+            <div class="field">
+              <div class="field-label">采购人</div>
+              <div class="field-value">广州市政务服务和数据管理局</div>
+            </div>
+            <div class="field">
+              <div class="field-label">预算金额</div>
+              <div class="field-value strong">3,500.00 万元</div>
+            </div>
+            <div class="field">
+              <div class="field-label">投标截止时间</div>
+              <div class="field-value danger">2026-09-28 09:30（剩余 12 天）</div>
+            </div>
+            <div class="field">
+              <div class="field-label">代理机构</div>
+              <div class="field-value">广东省机电设备招标有限公司</div>
+            </div>
+            <div class="field">
+              <div class="field-label">联系人</div>
+              <div class="field-value">李工（采购人项目部）</div>
+            </div>
+            <div class="field">
+              <div class="field-label">联系电话</div>
+              <div class="field-value">020-8351 2345</div>
+            </div>
+          </div>
+        </div>
+        <div class="card summary-card">
+          <div class="summary-head">
+            <div class="card-title">正文摘要</div>
+            <div class="summary-note">结构化字段提取自 bid_detail.structured</div>
+          </div>
+          <div class="para">项目概况：本项目为广州市智慧城市大数据中心平台建设项目，采购内容包括大数据平台软件采购、数据治理服务及三年运维服务。项目预算金额 3,500.00 万元，资金来源为市级财政资金，已落实。</div>
+          <div class="para">投标人资格要求：具备独立法人资格，具备有效期内的 ISO27001 信息安全管理体系认证，近三年内至少完成一个合同金额 1,000 万元以上的同类项目，本项目不接受联合体投标。</div>
+          <div class="para">投标截止时间：2026-09-28 09:30，逾期送达或不符合规定的投标文件不予受理。请各投标人提前办理 CA 数字证书并完成线上报名。</div>
+        </div>
+      </main>
+    </div>
+  </section>
+
+  <!-- ============ 页面 3：订阅管理 ============ -->
+  <section class="app-page" id="page3" data-menu="sub">
+    <header class="topbar" data-crumb="首页 / 订阅管理"></header>
+    <div class="body-area">
+      <aside class="sidebar"></aside>
+      <main class="content">
+        <div class="title-row">
+          <div class="title-group">
+            <div class="page-title">订阅管理</div>
+            <div class="page-source">数据来源：bid_subscription · 已启用 3 / 共 5 条订阅</div>
+          </div>
+          <button class="btn btn-primary">新建订阅</button>
+        </div>
+        <div class="card table-card">
+          <div class="thead">
+            <div class="th col-flex">订阅名称</div>
+            <div class="th" style="width:170px;">关键词</div>
+            <div class="th" style="width:90px;">地区</div>
+            <div class="th" style="width:100px;">公告类型</div>
+            <div class="th" style="width:130px;">推送渠道</div>
+            <div class="th" style="width:90px;">状态</div>
+            <div class="th" style="width:120px;">操作</div>
+          </div>
+          <div class="trow">
+            <div class="td col-flex">智慧城市类项目跟踪</div>
+            <div class="td" style="width:170px;">智慧城市 / 大数据</div>
+            <div class="td" style="width:90px;">广东广州</div>
+            <div style="width:100px;"><span class="tag tag-brand">招标公告</span></div>
+            <div class="td" style="width:130px;">飞书群机器人</div>
+            <div style="width:90px;"><span class="switch on" data-toggle><span class="knob"></span></span></div>
+            <div style="width:120px; display:flex; gap:12px;"><span class="op-link">编辑</span><span class="op-link danger row-disable">停用</span></div>
+          </div>
+          <div class="trow-line"></div>
+          <div class="trow">
+            <div class="td col-flex">教育局预算项目跟踪</div>
+            <div class="td" style="width:170px;">教育局</div>
+            <div class="td" style="width:90px;">广东全省</div>
+            <div style="width:100px;"><span class="tag tag-muted">全部类型</span></div>
+            <div class="td" style="width:130px;">邮件推送</div>
+            <div style="width:90px;"><span class="switch on" data-toggle><span class="knob"></span></span></div>
+            <div style="width:120px; display:flex; gap:12px;"><span class="op-link">编辑</span><span class="op-link danger row-disable">停用</span></div>
+          </div>
+          <div class="trow-line"></div>
+          <div class="trow">
+            <div class="td col-flex">停车场建设项目</div>
+            <div class="td" style="width:170px;">停车场</div>
+            <div class="td" style="width:90px;">全国</div>
+            <div style="width:100px;"><span class="tag tag-warn">变更公告</span></div>
+            <div class="td" style="width:130px;">Webhook</div>
+            <div style="width:90px;"><span class="switch off" data-toggle><span class="knob"></span></span></div>
+            <div style="width:120px; display:flex; gap:12px;"><span class="op-link">编辑</span><span class="op-link row-enable">启用</span></div>
+          </div>
+          <div class="trow-line"></div>
+          <div class="trow">
+            <div class="td col-flex">政务云资源采购</div>
+            <div class="td" style="width:170px;">政务云</div>
+            <div class="td" style="width:90px;">广东广州</div>
+            <div style="width:100px;"><span class="tag tag-brand">招标公告</span></div>
+            <div class="td" style="width:130px;">飞书群机器人</div>
+            <div style="width:90px;"><span class="switch on" data-toggle><span class="knob"></span></span></div>
+            <div style="width:120px; display:flex; gap:12px;"><span class="op-link">编辑</span><span class="op-link danger row-disable">停用</span></div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </section>
+
+  <!-- ============ 页面 4：推送记录 ============ -->
+  <section class="app-page" id="page4" data-menu="log">
+    <header class="topbar" data-crumb="首页 / 推送记录"></header>
+    <div class="body-area">
+      <aside class="sidebar"></aside>
+      <main class="content">
+        <div class="title-row">
+          <div class="title-group">
+            <div class="page-title">推送记录</div>
+            <div class="page-source">数据来源：bid_push_log · 今日推送 42 次，成功率 95.2%</div>
+          </div>
+        </div>
+        <div class="stats-row">
+          <div class="card stat-card">
+            <div class="stat-label">今日推送</div>
+            <div class="stat-value">42</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-label">推送成功</div>
+            <div class="stat-value green">40</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-label">推送失败</div>
+            <div class="stat-value red">2</div>
+          </div>
+        </div>
+        <div class="card table-card">
+          <div class="thead">
+            <div class="th" style="width:120px;">推送时间</div>
+            <div class="th" style="width:150px;">接收订阅</div>
+            <div class="th col-flex">匹配公告</div>
+            <div class="th" style="width:90px;">渠道</div>
+            <div class="th" style="width:80px;">状态</div>
+            <div class="th" style="width:220px;">失败原因</div>
+          </div>
+          <div class="trow">
+            <div class="td td-dim" style="width:120px;">2026-09-16 08:30</div>
+            <div class="td" style="width:150px;">智慧城市类项目跟踪</div>
+            <div class="td col-flex link goto-detail">广州市智慧城市大数据中心平台建设项目招标公告</div>
+            <div class="td" style="width:90px;">飞书</div>
+            <div style="width:80px;"><span class="tag tag-success">成功</span></div>
+            <div class="td td-muted" style="width:220px;">—</div>
+          </div>
+          <div class="trow-line"></div>
+          <div class="trow">
+            <div class="td td-dim" style="width:120px;">2026-09-16 08:30</div>
+            <div class="td" style="width:150px;">教育局预算项目跟踪</div>
+            <div class="td col-flex link goto-detail">天河区智慧校园一期工程中标结果公示</div>
+            <div class="td" style="width:90px;">邮件</div>
+            <div style="width:80px;"><span class="tag tag-success">成功</span></div>
+            <div class="td td-muted" style="width:220px;">—</div>
+          </div>
+          <div class="trow-line"></div>
+          <div class="trow">
+            <div class="td td-dim" style="width:120px;">2026-09-16 08:30</div>
+            <div class="td" style="width:150px;">停车场建设项目</div>
+            <div class="td col-flex link goto-detail">白云区智慧停车场项目变更公告（延期开标）</div>
+            <div class="td" style="width:90px;">Webhook</div>
+            <div style="width:80px;"><span class="tag tag-error">失败</span></div>
+            <div class="td" style="width:220px; color: var(--error);">Webhook 返回 502，已重试 3 次</div>
+          </div>
+          <div class="trow-line"></div>
+          <div class="trow">
+            <div class="td td-dim" style="width:120px;">2026-09-15 18:00</div>
+            <div class="td" style="width:150px;">政务云资源采购</div>
+            <div class="td col-flex link goto-detail">黄埔区政务云资源扩容采购项目招标公告</div>
+            <div class="td" style="width:90px;">飞书</div>
+            <div style="width:80px;"><span class="tag tag-success">成功</span></div>
+            <div class="td td-muted" style="width:220px;">—</div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </section>
+
+  <!-- ============ 页面 5：抓取日志 ============ -->
+  <section class="app-page" id="page5" data-menu="crawl">
+    <header class="topbar" data-crumb="首页 / 抓取日志"></header>
+    <div class="body-area">
+      <aside class="sidebar"></aside>
+      <main class="content">
+        <div class="title-row">
+          <div class="title-group">
+            <div class="page-title">抓取日志</div>
+            <div class="page-source">数据来源：bid_crawl_log · 今日执行 2 轮，累计抓取 50 条</div>
+          </div>
+          <button class="btn btn-primary">立即抓取</button>
+        </div>
+        <div class="card table-card">
+          <div class="thead">
+            <div class="th" style="width:130px;">执行时间</div>
+            <div class="th" style="width:190px;">源站</div>
+            <div class="th" style="width:100px;">抓取总数</div>
+            <div class="th" style="width:80px;">成功</div>
+            <div class="th" style="width:80px;">失败</div>
+            <div class="th" style="width:90px;">人工处理</div>
+            <div class="th col-flex">备注</div>
+          </div>
+          <div class="trow">
+            <div class="td td-dim" style="width:130px;">2026-09-16 08:00</div>
+            <div style="width:190px; display:flex; align-items:center; gap:8px;"><span class="td">中国政府采购网</span><span class="tag tag-success" style="height:20px; font-size:11px; padding:0 6px;">A级</span></div>
+            <div class="td" style="width:100px;">32</div>
+            <div class="td" style="width:80px; color: var(--success); font-weight: 500;">30</div>
+            <div class="td" style="width:80px; color: var(--error); font-weight: 500;">1</div>
+            <div class="td" style="width:90px; color: var(--warn);">1</div>
+            <div class="td td-dim col-flex">模板解析正常，1 条详情页超时待重试</div>
+          </div>
+          <div class="trow-line"></div>
+          <div class="trow">
+            <div class="td td-dim" style="width:130px;">2026-09-16 08:00</div>
+            <div style="width:190px; display:flex; align-items:center; gap:8px;"><span class="td">广东公共资源交易网</span><span class="tag tag-warn" style="height:20px; font-size:11px; padding:0 6px;">B级</span></div>
+            <div class="td" style="width:100px;">18</div>
+            <div class="td" style="width:80px; color: var(--success); font-weight: 500;">12</div>
+            <div class="td" style="width:80px; color: var(--error); font-weight: 500;">4</div>
+            <div class="td" style="width:90px; color: var(--warn);">2</div>
+            <div class="td td-dim col-flex">触发条件验证码（code=829），OCR 辅助识别</div>
+          </div>
+          <div class="trow-line"></div>
+          <div class="trow">
+            <div class="td td-dim" style="width:130px;">2026-09-15 20:00</div>
+            <div style="width:190px; display:flex; align-items:center; gap:8px;"><span class="td">中国政府采购网</span><span class="tag tag-success" style="height:20px; font-size:11px; padding:0 6px;">A级</span></div>
+            <div class="td" style="width:100px;">28</div>
+            <div class="td" style="width:80px; color: var(--success); font-weight: 500;">28</div>
+            <div class="td td-muted" style="width:80px;">0</div>
+            <div class="td td-dim" style="width:90px;">0</div>
+            <div class="td td-dim col-flex">全量解析成功，无异常</div>
+          </div>
+          <div class="trow-line"></div>
+          <div class="trow">
+            <div class="td td-dim" style="width:130px;">2026-09-15 20:00</div>
+            <div style="width:190px; display:flex; align-items:center; gap:8px;"><span class="td">广东公共资源交易网</span><span class="tag tag-warn" style="height:20px; font-size:11px; padding:0 6px;">B级</span></div>
+            <div class="td" style="width:100px;">15</div>
+            <div class="td" style="width:80px; color: var(--success); font-weight: 500;">10</div>
+            <div class="td" style="width:80px; color: var(--error); font-weight: 500;">3</div>
+            <div class="td" style="width:90px; color: var(--warn);">2</div>
+            <div class="td td-dim col-flex">验证码识别率偏低，建议人工复核</div>
+          </div>
+          <div class="pager-row">
+            <div class="pager-info">共 96 轮执行记录 · 每页 20 条</div>
+            <div class="pager-group">
+              <span class="pg current">1</span>
+              <span class="pg">2</span>
+              <span class="pg">3</span>
+              <span class="pg ellipsis">···</span>
+              <span class="pg" title="下一页"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 7l5 5-5 5" stroke="#666666" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </section>
+
+</div>
+
+<!-- 底部页面导航 -->
+<div id="deck-nav">
+  <button class="nav-btn" id="nav-prev" title="上一页">‹</button>
+  <button class="dot current" data-page="1">公告列表</button>
+  <button class="dot" data-page="2">公告详情</button>
+  <button class="dot" data-page="3">订阅管理</button>
+  <button class="dot" data-page="4">推送记录</button>
+  <button class="dot" data-page="5">抓取日志</button>
+  <button class="nav-btn" id="nav-next" title="下一页">›</button>
+</div>
+
+<script>
+/* ===== 侧边导航模板（严格还原设计稿共享组件） ===== */
+const ICONS = {
+  list: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.5 4H14M5.5 8H14M5.5 12H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="2.5" cy="4" r="1.2" fill="currentColor"/><circle cx="2.5" cy="8" r="1.2" fill="currentColor"/><circle cx="2.5" cy="12" r="1.2" fill="currentColor"/></svg>',
+  bell: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 2a4 4 0 0 0-4 4v2.8L2.8 11h10.4L12 8.8V6a4 4 0 0 0-4-4z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6.6 13a1.5 1.5 0 0 0 2.8 0" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  send: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 2L7.2 8.8M14 2L9.6 14L7.2 8.8L2 6.4L14 2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/></svg>',
+  doc: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 2h5.5L13 5.5V14H4V2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6.5 8.5h4M6.5 11h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'
+};
+
+const MENU = [
+  { key: 'list', text: '公告列表', icon: 'list' },
+  { key: 'sub',  text: '订阅管理', icon: 'bell' },
+  { key: 'log',  text: '推送记录', icon: 'send' },
+  { key: 'crawl',text: '抓取日志', icon: 'doc' }
+];
+
+function buildSidebar(activeKey) {
+  return `
+    <div class="logo-block">
+      <div class="logo-mark">招</div>
+      <div class="logo-name">招投标信息平台</div>
+    </div>
+    <nav class="menu">
+      ${MENU.map(m => `
+        <div class="menu-item ${m.key === activeKey ? 'active' : ''}" data-menu-key="${m.key}">
+          <span class="indicator"></span>
+          <span class="mi-icon" style="color:${m.key === activeKey ? '#0052D9' : '#666666'}">${ICONS[m.icon]}</span>
+          <span class="mi-text">${m.text}</span>
+        </div>`).join('')}
+    </nav>`;
+}
+
+function buildTopbar(crumb) {
+  return `
+    <span class="crumb">${crumb}</span>
+    <div class="topbar-right">
+      <span style="color:#666666;display:flex;">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 2a4 4 0 0 0-4 4v2.8L2.8 11h10.4L12 8.8V6a4 4 0 0 0-4-4z" stroke="#666666" stroke-width="1.4" stroke-linejoin="round"/><path d="M6.6 13a1.5 1.5 0 0 0 2.8 0" stroke="#666666" stroke-width="1.4" stroke-linecap="round"/></svg>
+      </span>
+      <span class="divider"></span>
+      <div class="avatar">陈</div>
+      <span class="uname">陈钢</span>
+    </div>`;
+}
+
+document.querySelectorAll('.app-page').forEach(page => {
+  page.querySelector('.sidebar').innerHTML = buildSidebar(page.dataset.menu);
+  page.querySelector('.topbar').innerHTML = buildTopbar(page.dataset.crumb);
+});
+
+/* ===== 页面切换 ===== */
+const PAGES = ['page1', 'page2', 'page3', 'page4', 'page5'];
+const PAGE_LABEL = { 1: '公告列表', 2: '公告详情', 3: '订阅管理', 4: '推送记录', 5: '抓取日志' };
+/* 页面 ↔ 侧栏激活项（公告详情归属公告列表） */
+const PAGE_MENU = { 1: 'list', 2: 'list', 3: 'sub', 4: 'log', 5: 'crawl' };
+const PAGE_COUNT = 5;
+let currentPage = 1;
+
+function gotoPage(n) {
+  if (n < 1 || n > PAGE_COUNT) return;
+  currentPage = n;
+  document.querySelectorAll('.app-page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page' + n).classList.add('active');
+  document.querySelectorAll('#deck-nav .dot').forEach(d => {
+    d.classList.toggle('current', Number(d.dataset.page) === n);
+  });
+}
+
+/* 侧栏菜单点击跳转 */
+document.addEventListener('click', e => {
+  const mi = e.target.closest('.menu-item');
+  if (!mi) return;
+  const key = mi.dataset.menuKey;
+  const map = { list: 1, sub: 3, log: 4, crawl: 5 };
+  if (map[key]) gotoPage(map[key]);
+});
+
+/* 查看详情 / 匹配公告 → 公告详情 */
+document.addEventListener('click', e => {
+  if (e.target.closest('.goto-detail')) gotoPage(2);
+});
+
+/* 底部导航 */
+document.querySelectorAll('#deck-nav .dot').forEach(d => {
+  d.addEventListener('click', () => gotoPage(Number(d.dataset.page)));
+});
+document.getElementById('nav-prev').addEventListener('click', () => gotoPage(currentPage - 1));
+document.getElementById('nav-next').addEventListener('click', () => gotoPage(currentPage + 1));
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') gotoPage(currentPage - 1);
+  if (e.key === 'ArrowRight') gotoPage(currentPage + 1);
+});
+
+/* ===== 订阅开关交互 ===== */
+document.querySelectorAll('[data-toggle]').forEach(sw => {
+  sw.addEventListener('click', () => {
+    sw.classList.toggle('on');
+    sw.classList.toggle('off');
+  });
+});
+
+/* ===== 1440×900 原始画布 + 等比缩放 ===== */
+function fitStage() {
+  const stage = document.getElementById('stage');
+  const scale = Math.min(window.innerWidth / 1440, (window.innerHeight) / 900);
+  stage.style.transform = 'scale(' + scale + ')';
+  stage.style.left = ((window.innerWidth - 1440 * scale) / 2) + 'px';
+  stage.style.top = ((window.innerHeight - 900 * scale) / 2) + 'px';
+}
+window.addEventListener('resize', fitStage);
+fitStage();
+</script>
+</body>
+</html>

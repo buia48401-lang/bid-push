@@ -1,0 +1,33 @@
+- generic [ref=f3e2]:
+  - banner [ref=f3e3]:
+    - navigation "面包屑" [ref=f3e4]:
+      - link "首页" [ref=f3e5] [cursor=pointer]:
+        - /url: /
+      - generic [aria-hidden] [ref=f3e6]: /
+      - generic [ref=f3e7]: 推送记录
+    - generic [ref=f3e8]:
+      - button "通知" [ref=f3e9] [cursor=pointer]
+      - generic [ref=f3e14]:
+        - generic [aria-hidden] [ref=f3e15]: 陈
+        - generic [ref=f3e16]: 陈钢
+  - generic [ref=f3e17]:
+    - complementary [ref=f3e18]:
+      - generic [ref=f3e19]:
+        - generic [aria-hidden] [ref=f3e20]: 招
+        - generic [ref=f3e21]: 招投标信息平台
+      - navigation "主导航" [ref=f3e22]:
+        - link "公告列表" [ref=f3e23] [cursor=pointer]:
+          - /url: /announces
+        - link "订阅管理" [ref=f3e27] [cursor=pointer]:
+          - /url: /subscriptions
+        - link "推送记录" [ref=f3e33] [cursor=pointer]:
+          - /url: /push-logs
+        - link "抓取日志" [ref=f3e39] [cursor=pointer]:
+          - /url: /crawl-logs
+    - main [ref=f3e45]:
+      - generic [ref=f3e47]:
+        - heading "推送记录" [level=1] [ref=f3e48]
+        - paragraph [ref=f3e49]: 数据来源：bid_push_log
+      - generic [ref=f3e50]:
+        - paragraph [ref=f3e57]: 页面骨架已就绪
+        - paragraph [ref=f3e58]: 今日推送 / 成功 / 失败统计卡与推送明细（含失败原因）将在页面模块中实现

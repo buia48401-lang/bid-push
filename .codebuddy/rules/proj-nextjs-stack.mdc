@@ -1,0 +1,99 @@
+---
+description: 招投标推送系统技术栈版本锁定、目录与命名约定、统一接口信封与分页格式（新增文件 / 新增接口时必读）
+alwaysApply: true
+enabled: true
+provider: project
+---
+
+# 项目规约 · 技术栈 · 目录命名 · 接口信封
+
+> 本文件只写「本项目特有的差异约束」。通用编码风格见用户级 `01-coding-style` / `fe-*` / `lang-*`，此处不重复。
+
+## 1. 技术栈版本锁定
+
+| 维度 | 锁定值 | 说明 |
+| --- | --- | --- |
+| 框架 | Next.js 15 App Router + React 19 | 禁止 Pages Router、禁止改 `app/` 之外的页面组织方式 |
+| 语言 | TypeScript 5，`tsconfig.json` 的 `strict: true` | 禁止关闭 strict、禁止用 `any` 消音（用 `unknown` + 收窄） |
+| 样式 | Tailwind CSS 3.4 + `app/globals.css` 的 CSS 变量 token | 禁止引入第二套 UI 框架或第二套 Tailwind 规范 |
+| UI 基元 | shadcn/ui（`components.json`，输出到 `components/ui/`） | 按需 `add`，禁止手写伪造 shadcn 组件 |
+| 数据访问 | `@supabase/supabase-js`，仅服务端 | 见 `proj-layer-boundary` |
+| 校验 | Zod，只放在 `lib/validation/**` | |
+| 测试 | Vitest，用例放 `application/tests/**/*.test.ts` | |
+| 包管理器 | **npm** | 禁止改用 pnpm / yarn，禁止同时提交多种锁文件 |
+
+❌ 反例：`npm i next@16`、把 `strict` 改回 `false`、为省事 `import type { X } from '@supabase/supabase-js'` 后直接在组件里查库。
+✅ 正例：升级依赖前先改本文件版本表并在 PR 描述中说明迁移影响。
+
+## 2. 目录与命名
+
+```
+app/**/page.tsx         页面（Server Component 优先）
+app/api/**/route.ts     Route Handler，一个文件只导出 HTTP 方法
+components/layout/      外壳（app-shell / sidebar / topbar / breadcrumb）
+components/common/      跨页面复用块（page-header / empty-state / error-state / page-placeholder）
+components/ui/          shadcn 基元，只由 CLI 生成，不手改内部实现
+lib/api/                error-codes / errors / response / request / handler
+lib/data/               数据访问 + 字段映射（唯一允许出现 snake_case 的业务层）
+lib/supabase/           env / server / admin
+lib/validation/         Zod schema
+lib/constants/          nav（导航元数据）/ domain（业务枚举）
+lib/utils/              format（格式化）等纯函数
+types/                  接口类型 + 数据表行类型
+```
+
+| 对象 | 约定 | 例 |
+| --- | --- | --- |
+| 路由目录 | 全小写 kebab-case | `app/push-logs/page.tsx` |
+| 组件文件 | kebab-case，导出名 PascalCase | `components/common/page-header.tsx` → `PageHeader` |
+| 工具文件 / 导出函数 | camelCase | `lib/utils/format.ts` → `formatDateTime` |
+| 类型文件 | kebab-case，导出名 PascalCase | `types/push-log.ts` → `PushLogItem` |
+| 常量 | UPPER_SNAKE_CASE | `NAV_ITEMS`、`CONTENT_TEXT_MAX_LENGTH` |
+| 单个文件行数 | ≤ 300 行 | 超出即拆分 |
+
+✅ 正例：`components/common/error-state.tsx`
+❌ 反例：`components/common/ErrorState.tsx`、`lib/utils/Format.ts`、`app/pushLogs/page.tsx`
+
+## 3. 接口信封与分页（唯一事实源：`docs/api-contract.md` §1）
+
+**逐字遵守**，代码落点在 `lib/api/**` 与 `types/api.ts`：
+
+```ts
+// 成功
+{ code: 0, message: 'ok', data: <T>, traceId: string }
+// 失败：data 恒为 null
+{ code: 400 | 404 | 500 | 503, message: string, data: null, traceId: string }
+```
+
+- 列表接口的 `data` 统一为 `{ list, total, page, pageSize }`（详情见 `types/api.ts` 的 `PageResult<T>`）。
+- 分页默认值：`page = 1`、`pageSize = 20`、`pageSize` 上限 `100`（`lib/validation/common.ts`）。
+- 业务 `code` 与 HTTP 状态码一一对应；`code` 表**只有 5 个值**，写在 `lib/api/error-codes.ts`。
+
+🔴 **禁止新增错误码**（含 501）。契约明确「变更需先改 `api-contract.md` 并经人确认」。
+🔴 **禁止新增接口路径**：当前契约只有 7 条 —— `GET /api/announces`、`GET /api/announces/{id}`、`GET /api/subscriptions`、`POST /api/subscriptions`、`PUT /api/subscriptions/{id}`、`GET /api/push-logs`、`GET /api/crawl-logs`。
+
+## 4. 每个 Route Handler 的固定写法
+
+一律 `export const GET = withRouteHandler(...)`，禁止在 route 文件里手写 `NextResponse.json`、手写 try/catch、手写 traceId。
+
+```ts
+import { withRouteHandler } from '@/lib/api/handler';
+import { toQueryObject } from '@/lib/api/request';
+import { listAnnounces } from '@/lib/data/announces';
+import { AnnounceListQuerySchema } from '@/lib/validation/announce';
+
+export const dynamic = 'force-dynamic';
+
+export const GET = withRouteHandler(async (_request, { searchParams }) => {
+  const query = AnnounceListQuerySchema.parse(toQueryObject(searchParams));
+  return listAnnounces(query);
+});
+```
+
+职责边界：route 只做「取参 → Zod 校验 → 调 `lib/data` → 返回数据」，信封与错误映射交给 `withRouteHandler`。
+
+## 5. 数据库脚本
+
+- 结构变更**新增** `n8n/sql/003_xxx.sql`，**禁止**修改 `001_bid_schema.sql`（基线，改它会造成新旧环境结构漂移）。
+- 新脚本必须幂等：`ADD COLUMN IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` / `DROP POLICY IF EXISTS` 后再建。
+- 必须带反向 SQL（以注释形式附在文件末尾）。

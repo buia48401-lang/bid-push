@@ -1,0 +1,140 @@
+---
+description: 注释规范——React/TS、SQL(PostgreSQL)、配置文件注释模板,意图优先,不写废话
+alwaysApply: true
+enabled: true
+provider: project
+---
+
+# 注释规范（02-code-comments）
+
+> **核心原则**:注释只说明**真实意图**和**关键步骤**。
+> 不堆砌废话,不写"做什么",只写"**为什么**"和"**怎么做**"。
+
+---
+
+## 0. 总原则
+
+| 原则 | 说明 |
+|------|------|
+| **意图优先** | 写"为什么这么做",不写"做了什么" |
+| **简洁至上** | 一行能说清不写两行 |
+| **代码自明不注** | 变量名 / 方法名已清晰表达意图的,不加注释 |
+| **关键步骤标注** | 复杂流程用 `// 1. 2. 3.` 标注关键步骤 |
+| **枚举必须说明** | 状态字段不加注释 = 不知道取值各代表什么 |
+| **术语对齐** | 注释中的业务名词必须与 `proj-domain-terms` 一致(公告 / 订阅 / 抓取日志 / 推送记录),禁止自造同义词 |
+
+---
+
+## 1. 前端注释（React / TS）
+
+### 1.1 文件头部
+
+```ts
+/**
+ * <文件名 / 组件名>: <一句话功能>
+ * <可选: 关键设计点、相关文档链接>
+ */
+```
+
+> 文件头部 **仅** 在 `app/**/page.tsx` 入口或公共组件(`components/common/**`)使用。
+> 工具函数 / 子组件 / hooks **不写** 文件头部。
+
+### 1.2 函数 / API 注释
+
+```ts
+// ✅ 正确:说明意图
+/** 查询公告分页列表;snake_case → camelCase 映射在此完成 */
+export async function listAnnounces(query: AnnounceListQuery) { ... }
+
+// ❌ 错误:废话
+/** 调用 supabase.from('bid_announce') 执行 select */
+```
+
+### 1.3 复杂逻辑注释
+
+```ts
+// ✅ 正确:关键步骤前面加一行
+const formatBudget = (budget?: string | number) => {
+  // 金额在库中为 numeric(18,2),PostgREST 可能以字符串返回,统一转千分位
+  ...
+}
+```
+
+### 1.4 React 组件
+
+```tsx
+/** 公告状态徽标:按 crawlStatus 渲染颜色,枚举值取自 lib/constants/domain.ts */
+export function CrawlStatusBadge({ status }: CrawlStatusBadgeProps) { ... }
+```
+
+### 1.5 🚫 禁止的注释
+
+| 类型 | 示例 | 原因 |
+|------|------|------|
+| 废话注释 | `// 设置 loading 为 true` | 代码已自明 |
+| 日期记录 | `// 2026-01-01 by 张三:修改 xxx` | 用 Git 记录 |
+| 注释掉的代码 | `// old code ...` | 直接删除,版本历史在 Git |
+| 情绪化注释 | `// TODO: 这里太烂了,以后改` | 不专业 |
+| 重复函数签名 | `/** 获取标题 */ getTitle()` | 无意义 |
+
+---
+
+## 2. SQL 脚本注释（PostgreSQL）
+
+> 本项目数据库为 PostgreSQL / Supabase,脚本维护在 `n8n/sql/`。
+> 🔴 基线 `001_bid_schema.sql` 不可修改,结构变更一律新建 `003_xxx.sql`(见 `proj-nextjs-stack` §5)。
+
+### 2.1 新增脚本模板
+
+```sql
+-- =============================================
+-- 脚本: 003_add_announce_no.sql
+-- 说明: bid_announce 新增公告编号字段(可空)
+-- 作者: 张三
+-- 日期: 2026-09-17
+-- =============================================
+ALTER TABLE bid_announce ADD COLUMN IF NOT EXISTS announce_no VARCHAR(64);
+
+COMMENT ON COLUMN bid_announce.announce_no IS '公告编号,可空';
+```
+
+### 2.2 强制要求
+
+- 🔴 **字段 COMMENT 强制**:每个新增业务字段必须 `COMMENT ON COLUMN` 说明含义;枚举字段必须列出全部合法取值。
+- 🔴 **必须幂等**:`ADD COLUMN IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`。
+- 🔴 **必须带反向 SQL**:以注释形式附在文件末尾(`-- 反向 SQL: ALTER TABLE ... DROP COLUMN ...`)。
+
+### 2.3 🚫 禁止
+
+| 类型 | 说明 |
+|------|------|
+| 缺 COMMENT | 新增业务字段必须有注释 |
+| 缺枚举说明 | 状态/类型字段的注释必须列出枚举值 |
+| 孤立 SQL | 没有头部说明的独立 SQL 脚本 |
+| 修改基线 | 禁止改动 `001_bid_schema.sql` |
+| 物理删除 DROP TABLE | 见 `03-ai-safety.mdc` |
+
+---
+
+## 3. 配置文件注释（YAML / TOML / JSON）
+
+```yaml
+# 数据库连接池配置
+datasource:
+  url: ${DB_URL}      # 从环境变量读取
+  max-active: 20      # 最大连接数
+```
+
+🔴 **敏感信息禁止硬编码**:密码、token、API key 必须从环境变量读取。
+🔴 本项目 `.env.local` 不入库,只提交 `.env.example` 占位(见 `proj-forbidden` §4)。
+
+---
+
+## 4. 注释总则
+
+> **黄金准则**:
+> 1. **删掉注释,代码仍然易懂 → 注释多余,删**
+> 2. **删掉注释,代码看不懂 → 注释是必要,保留**
+> 3. **删掉注释,代码会出错或误解 → 注释必须保留**
+
+回答一个问题:**「未来的读者需要知道但代码本身没说的事情是什么?」** —— 把这个写进注释。

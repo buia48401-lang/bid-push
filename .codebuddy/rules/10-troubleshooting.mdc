@@ -1,0 +1,260 @@
+---
+description: 跨技术栈通用问题诊断决策树——按报错象限(编译/运行时/前端请求/数据库)定位、按诊断步骤推进
+alwaysApply: false
+enabled: true
+provider: project
+---
+
+# 通用问题诊断决策树（10-troubleshooting）
+
+> 本文件是 **AI 排查问题时的方法论**,不替代具体技术栈的错误处理知识。
+> 触发场景:用户报告报错、AI 自己出错、或者代码改了但效果不符合预期。
+
+---
+
+## 一、四象限诊断决策树
+
+```
+报错发生
+  │
+  ├─ A. 编译错误 → 第 2 节(IDE / 编译器报错)
+  │
+  ├─ B. 运行时异常(后端) → 第 3 节
+  │
+  ├─ C. 前端请求错误 → 第 4 节
+  │
+  └─ D. 数据库错误 → 第 5 节
+```
+
+诊断流程:
+1. **看报错类型**:栈信息关键字 = 象限
+2. **定位文件**:`grep` / IDE search 错误信息关键 token
+3. **对比规范**:检查是否违反规则(本套规则 + 具体技术栈规则)
+4. **修复 + 验证**:重启/编译/复测
+
+---
+
+## 二、编译错误快速修复
+
+### 2.1 通用诊断命令
+
+| 语言 | 命令 |
+|------|------|
+| TypeScript(本项目) | 在 `application/` 下执行 `npm run typecheck` |
+| 全工程构建 | 在 `application/` 下执行 `npm run lint && npm run typecheck && npm run build` |
+
+### 2.2 常见编译错误速查
+
+| 错误信息 | 原因 | 修复方法 |
+|----------|------|----------|
+| `package does not exist` / `Module not found` | 包路径 / 模块名错误 | 核对 import 路径,与项目规范一致 |
+| `cannot find symbol: class Xxx` | 类不存在 / 没编译 / 没引用 | 检查依赖 + 构建路径 |
+| `incompatible types` | 类型不匹配 | 用项目规范的转换类 / Converter;禁止手写 set/get |
+| `property XXX has no initializer` | TS strict 模式下未初始化 | 加 `?` 或显式初始化 |
+| `syntax error` / `SyntaxError` | 语法错 | 对照语言文档 |
+| `cannot find name` / `unresolved reference` | 引用未导入 / 未声明 | 加 import |
+
+### 2.3 编译器缓存问题
+
+```
+改了代码还是同样报错?
+  ↓
+[1] 硬刷新: Ctrl + Shift + R / Cmd + Shift + R
+[2] 清理构建缓存: mvn clean / 删除 .vite / 删 node_modules/.cache
+[3] 重启服务: dev server / application server
+[4] 完全重建: 删除 node_modules 后重新 npm install(包管理器只用 npm)
+```
+
+---
+
+## 三、运行时异常(后端)
+
+### 3.1 诊断命令
+
+```bash
+# 查看最近日志
+tail -100 logs/*.log | grep -E "ERROR|Exception"
+
+# 实时监控
+tail -f logs/*.log
+
+# 按时间筛选
+grep -A 20 "$(date '+%Y-%m-%d %H:%M')" logs/*.log
+```
+
+### 3.2 常见运行时错误
+
+| 异常 | 关键词 | 排查方向 |
+|------|--------|----------|
+| `NullPointerException` / `AttributeError` / `TypeError: Cannot read property` | NPE / NoneType | null 对象直接调用方法,检查对象是否初始化 |
+| `No qualifying bean` / `Bean not found` | 注入失败 | 类是否在框架扫描路径 / 模块是否注册 |
+| `DataIntegrityViolationException` / `IntegrityError` | constraint violation | 唯一约束 / 外键冲突 / 非空约束 |
+| `SQLSyntaxErrorException` / `column not found` | Unknown column | 列名 / 表名是否匹配数据库实际 schema |
+| `MethodArgumentNotValidException` | validation failed | VO 校验注解与入参值 |
+| `403 Forbidden` / `AccessDeniedException` | 权限 | 鉴权注解 / 角色配置 / token |
+| `404 Not Found` | No handler | URL 路径 / 模块注册 / 路由表 |
+| `429 Too Many` | 限流 | 触发限流阈值 / 调整限流策略 |
+| `500 Internal Server Error` | 服务内部 | 看日志根因,不只看 HTTP code |
+
+### 3.3 数据库字段对齐
+
+当出现 `Unknown column` 错误:
+1. **describe_table / show columns** 确认实际列名
+2. **grep** XML / Mapper 中使用的列名
+3. 比对:表名、字段名、字段类型
+
+---
+
+## 四、前端请求错误
+
+### 4.1 网络面板优先
+
+排查顺序:
+1. **Network 面板**:看请求 URL、Method、Status、Payload、Response
+2. **Console 面板**:JS 报错
+3. **Application 面板**:Cookie / Storage
+
+### 4.2 常见网络错误
+
+| 现象 | 排查方向 |
+|------|----------|
+| `404 Not Found` | URL 路径是否对 / 后端接口是否注册 / 微服务路由 |
+| `500 Server Error` | 看后端日志 |
+| `CORS error` | Access-Control-* 头 / 跨域配置 |
+| 双 `admin-api` 前缀 | baseURL 已包含,API 代码中**不要** 再加前缀 |
+| 接口超时 | 后端慢查询 / 网络问题 / 增加超时 |
+| `401 / 403` | 鉴权配置 / token 失效 |
+| `503 DB_UNAVAILABLE` | `application/.env.local` 未配置或 Supabase 凭据错误(本项目最常见) |
+| `500 NOT_IMPLEMENTED` | 对应 `lib/data` 查询体尚未实现(`unimplemented()` 占位),先实现数据层 |
+| 跨域 / Mixed Content | HTTPS 页面调 HTTP 接口(必须全 HTTPS) |
+
+### 4.3 前端缓存问题
+
+```
+改了 API 文件但还是老错误?
+  ↓
+[1] 硬刷新(Ctrl + Shift + R)
+[2] DevTools → Network → Disable cache
+[3] 重启 dev server(npm run dev)
+[4] Network 面板确认实际请求 URL
+```
+
+---
+
+## 五、数据库错误
+
+### 5.1 报错类型
+
+| 报错 | 含义 | 排查 |
+|------|------|------|
+| `Deadlock found` | 死锁 | 事务顺序 / 加锁范围 / 重试机制 |
+| `Lock wait timeout` | 锁等待超时 | 慢事务 / 优化索引 |
+| `Duplicate entry` | 唯一键冲突 | 是否重复提交 / 是否需要幂等 |
+| `Foreign key constraint fails` | 外键约束 | 子表存在数据 / 父表 ID 正确 |
+| `Out of range` | 数值越界 | 字段类型 / 范围 |
+
+### 5.2 性能问题
+
+```
+查询慢?
+  ↓
+[1] EXPLAIN / EXPLAIN ANALYZE 看执行计划
+[2] 检查索引:是否走索引 / 索引选择性
+[3] 检查数据量:where 条件过滤前 vs 后
+[4] 全表扫描?→ 加索引或限定条件
+[5] 考虑分页:limit + offset vs 游标分页
+```
+
+---
+
+## 六、诊断日志三板斧
+
+1. **看启动日志**:Bean 初始化失败、端口冲突、配置错误
+2. **看请求日志**:请求是否到达 Controller、参数是否正确
+3. **看数据库日志**:SQL 执行情况、租户过滤、逻辑删除字段是否生效
+
+---
+
+## 七、按技术栈的错误排查
+
+### 7.1 React / Next.js(本项目)
+
+```
+常见问题: 组件不渲染 / hydration mismatch / Server 与 Client 边界错误 / 路由白屏
+工具:     React Devtools / Next.js 终端输出 / Performance 面板
+```
+
+### 7.2 本项目速查
+
+```
+503 DB_UNAVAILABLE     → application/.env.local 未配置 Supabase 凭据
+500 NOT_IMPLEMENTED    → lib/data 对应函数仍是 unimplemented() 占位
+接口静默返回 0 行       → bid_subscription 误用 anon 客户端,必须走 getAdminClient()(RLS)
+状态值展示为原始中文串  → 硬编码字面量,应改 import lib/constants/domain.ts
+样式改了不生效          → 色值/间距未走 globals.css token 或 Tailwind 未扫到该文件
+```
+
+### 7.3 通用 Web
+
+```
+常见问题: CORS / Cookie SameSite / HTTPS 混合内容 / 缓存策略
+工具:     Chrome DevTools / Wireshark / curl / Postman
+```
+
+---
+
+## 八、错误排查通用 SOP
+
+```
+[1] 复现:是否能稳定复现? 触发条件?
+[2] 隔离:最小化触发场景,排除干扰
+[3] 看现象:错误码 / 报错信息 / 期望 vs 实际
+[4] 搜历史:曾经是否出现过?Root cause 是什么?
+[5] 假设:基于现象给 3 个可能根因
+[6] 验证:用最快的方式逐个验证假设
+[7] 修复:最小化改动 + 验证不引入新问题
+[8] 回归:跑相关测试,确认副作用
+[9] 记录:写明根因 / 修复 / 预防措施
+```
+
+---
+
+## 九、求助的姿势
+
+- ❌ 「程序跑不起来,帮我看看」 → 无效求助
+- ✅ 「运行 X 命令,报错 `Y`,期望 Z,实际 W,已尝试 A/B/C」 → 有效求助
+
+模板:
+
+```markdown
+## 问题
+<一句话描述>
+
+## 复现步骤
+1. ...
+2. ...
+
+## 期望 vs 实际
+- 期望: ...
+- 实际: ...
+
+## 报错信息
+```
+<paste error log>
+```
+
+## 已尝试
+- [x] ...
+- [ ] 没试
+
+## 环境信息
+- 语言/框架版本: ...
+- 操作系统: ...
+- 关键配置: ...
+```
+
+---
+
+## 十、一句话总结
+
+> **三板斧**:看启动 → 看请求 → 看 DB,**优先看现象,再用假设,最小改动验证,记录根因防再现**。

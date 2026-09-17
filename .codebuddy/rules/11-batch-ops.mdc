@@ -1,0 +1,345 @@
+---
+description: 批量操作三步法（备份→执行→验证）——导入/导出/更新/删除的通用安全执行流程,分批控制,事务与权限约束
+alwaysApply: false
+enabled: true
+provider: project
+---
+
+# 批量操作三步法（11-batch-ops）
+
+> **触发词**:「批量」「batch」「大批」「导入数据」「批量更新」「批量删除」
+>
+> 任何涉及**> 100 条记录**的写操作,必须按本规则执行。
+>
+> ⚠️ **本项目提示**:数据库为 **PostgreSQL / Supabase**,下文示例为 MySQL / MyBatis 语法,执行时必须按 PG 语法转换;且应用侧对 `bid_subscription` 之外的表只读,批量写操作原则上只应发生在 n8n / 数据库侧。
+
+---
+
+## 一、🔴 三步法总纲
+
+```
+[1] 备份 Backup → [2] 执行 Execute → [3] 验证 Verify
+```
+
+每个步骤**单独判断通过**,再进入下一步。任一步骤失败 → **停止并回滚到上一步**。
+
+---
+
+## 二、Step 1: 备份
+
+### 2.1 备份对象
+
+| 数据 | 备份方式 |
+|------|----------|
+| 数据库表 | `CREATE TABLE table_backup_{YYYYMMDD_HHmm} AS SELECT * FROM table WHERE ...` |
+| 文件 | `cp -r /src /dst.bak` 或压缩成 `tar.gz` |
+| 配置 | `cp config.yaml config.yaml.bak` |
+| 缓存 | 记录 key / value 快照 |
+
+### 2.2 备份原则
+
+- 🔴 **必须** 在修改前完成备份
+- 备份要有**时间戳**(避免覆盖)
+- 备份要**验证可恢复**(`SELECT COUNT(*) FROM backup` 与原表对比)
+- 备份文件**不**与原文件同名同位置
+
+### 2.3 备份脚本示例
+
+```sql
+-- MySQL 备份
+CREATE TABLE user_backup_20260825_1430 AS
+SELECT * FROM user WHERE create_time >= '2026-01-01';
+
+-- 验证
+SELECT COUNT(*) FROM user_backup_20260825_1430;
+-- 与 SELECT COUNT(*) FROM user WHERE create_time >= '2026-01-01' 对比
+```
+
+```bash
+# 文件备份
+cp -r uploads/contracts uploads.bak.20260825_1430
+
+# 压缩备份
+tar czf config.bak.20260825_1430.tar.gz config/
+```
+
+---
+
+## 三、Step 2: 执行
+
+### 3.1 执行前的可脚本化判断
+
+```
+收到批量操作需求
+  │
+  ├─ 是适合脚本执行?
+  │   ├─ 纯数据修改(批量更新状态/删除)→ 可脚本化 ✅
+  │   ├─ 简单 CRUD(批量导入/导出)→ 可脚本化 ✅
+  │   ├─ 复杂业务逻辑(多 Service/事务)→ 不可脚本化 ❌
+  │   └─ 跨模块/跨库 → 不可脚本化 ❌
+  │
+  ├─ [可脚本化] 按三步法执行
+  │   1. 备份
+  │   2. 在测试表先执行并验证(灰度)
+  │   3. 测试通过 → 删除测试表 → 正式表执行
+  │   4. 测试不通过 → 修改脚本 → 重试 ②-③
+  │
+  └─ [不可脚本化] 拉清单逐条处理
+      生成待处理清单(ID+备注) → 按优先级排序 → 逐条执行并记录结果
+```
+
+### 3.2 分批控制
+
+| 维度 | 阈值 | 原因 |
+|------|------|------|
+| 单批大小 | **≤ 500 条** | 事务超时 / 锁等待 |
+| 批次间间隔 | **可选 sleep 10~100ms** | 避免雪崩 |
+| 单次总上限 | **≤ 10 万条 / 任务** | 超限异步 + 进度查询 |
+
+### 3.3 通用安全约束
+
+| 操作 | 约束 |
+|------|------|
+| **批量新增** | 用 `INSERT INTO ... VALUES (...), (...)` 语法,**禁止** 循环逐条 |
+| **批量修改** | 事务包裹,失败全回滚,每批 ≤ 500 |
+| **批量删除** | **逻辑删除**,禁止物理删除,二次确认 |
+| **大数据量** | 异步 + 分批 + 频率限制 |
+| **跨库/跨模块** | 不可脚本化,必须拉清单逐条处理 |
+
+### 3.4 SQL 批量执行模板
+
+```sql
+-- [1] 备份(执行前)
+CREATE TABLE xxx_backup_20260825 AS SELECT * FROM xxx WHERE id IN (...);
+
+-- [2] 分批更新(每批 ≤ 500)
+UPDATE xxx SET status = 1
+WHERE id BETWEEN 1 AND 500 AND deleted = 0;
+
+UPDATE xxx SET status = 1
+WHERE id BETWEEN 501 AND 1000 AND deleted = 0;
+
+-- [3] 记录日志:每批影响行数
+```
+
+### 3.5 代码层分批
+
+```java
+// MyBatis Plus 推荐
+int rows = xxxMapper.updateBatchById(list, 500);
+
+// 自定义分批循环(更细粒度)
+List<List<X>> chunks = Lists.partition(list, 500);
+for (List<X> chunk : chunks) {
+    xxxService.batchUpdate(chunk);
+}
+```
+
+---
+
+## 四、Step 3: 验证
+
+### 4.1 验证清单
+
+```
+[1] 影响行数 = 预期行数(± 10% 容差)
+[2] 抽样核对:5~10 条数据,与源数据一致
+[3] 关联表:外键关联是否完整
+[4] 索引/约束:是否仍能正常使用
+[5] 性能:批量后查询耗时在合理范围
+[6] 用户感知:UI / 接口返回值是否如预期
+```
+
+### 4.2 验证脚本
+
+```sql
+-- 行数对比
+SELECT COUNT(*) FROM xxx;                              -- 修改后
+SELECT COUNT(*) FROM xxx_backup_20260825;              -- 备份
+-- 期望:行数变化符合预期
+
+-- 抽样核对
+SELECT * FROM xxx WHERE id IN (1, 2, 3, ...);
+
+-- 异常数据扫描
+SELECT * FROM xxx
+WHERE <不变量被破坏>
+LIMIT 100;
+```
+
+---
+
+## 五、批量导入专项
+
+### 5.1 强制约束
+
+- 🔴 **必须** 校验文件类型,仅允许 `.xlsx` / `.xls` / `.csv`(按项目定)
+- 🔴 **必须** 校验数据格式和业务规则
+- 🔴 **必须** 返回明细:**成功 / 失败分离**,失败含行号 + 字段 + 原因
+- 🔴 **大文件必须异步导入**,提供任务进度查询
+- 🔴 **必须** 走 Service 层,**禁止** 绕过业务校验直接写库
+
+### 5.2 通用返回结构
+
+```json
+{
+  "code": 0,
+  "data": {
+    "total": 1000,
+    "successCount": 998,
+    "failureCount": 2,
+    "failures": [
+      { "rowIndex": 3,  "field": "mobile", "reason": "手机号格式错误" },
+      { "rowIndex": 7,  "field": "userId", "reason": "关联用户不存在" }
+    ]
+  },
+  "message": "导入完成,2 条失败"
+}
+```
+
+### 5.3 接口示例
+
+```java
+@PostMapping("/import-excel")
+@Permission("user:import")  // 权限控制(各语言对应)
+public R<ImportResult> importExcel(@RequestParam("file") MultipartFile file) {
+    // 1. 文件类型校验
+    // 2. 解析并校验
+    // 3. 业务导入(含校验、去重、保存)
+    // 4. 返回成功失败明细
+}
+```
+
+---
+
+## 六、批量导出专项
+
+### 6.1 强制约束
+
+- 🔴 **必须** 加权限控制(后端鉴权 + 接口调用方权限)
+- 🔴 **大数据量** 必须异步处理,避免内存溢出和接口超时
+- 🔴 **必须** 限制导出频率(如每分钟 / 每用户最多 N 次)
+- 🔴 **敏感字段** 必须脱敏(手机号、身份证、银行卡等)
+- ✅ 文件名规范:`{业务}_{日期}.xlsx`,下载链接需鉴权
+
+### 6.2 异步导出流程
+
+```
+用户发起导出
+  ↓
+后端: 创建导出任务(状态=进行中) + 返回 taskId
+  ↓
+后端: 异步查询数据 → 生成 Excel → 上传 OSS / 服务器
+  ↓
+前端: 轮询任务进度,或通过 WebSocket / SSE 推送
+  ↓
+任务完成 → 返回下载链接(短时签名 URL)
+```
+
+---
+
+## 七、批量删除专项
+
+### 7.1 强制约束
+
+- 🔴 **禁止物理删除**(违反 AI 安全红线)
+- 🔴 必须二次确认(前端弹窗 + 后端幂等校验)
+- 🔴 批量删除前必须先**查询出待删除数据并展示摘要**
+- 🔴 关键业务数据删除需记录**操作日志**
+- ✅ 推荐 SQL:`UPDATE table SET deleted = 1, update_time = NOW() WHERE id IN (...)`
+
+### 7.2 操作日志必填字段
+
+```json
+{
+  "operator": "zhangsan",
+  "operation": "batch_delete",
+  "target": "user",
+  "targetIds": [1, 2, 3],
+  "count": 3,
+  "reason": "按用户协议清理无效账号",
+  "timestamp": "2026-08-25T14:30:00Z",
+  "clientIp": "192.168.1.100"
+}
+```
+
+---
+
+## 八、批量更新专项
+
+### 8.1 强制约束
+
+- ✅ **优先** ORM 自带批量方法(updateBatchById 等)
+- ✅ 复杂场景可手写批量 UPDATE SQL,但需:
+  - 事务控制(`@Transactional`)
+  - 分批提交(每批 ≤ 500)
+  - 更新后校验影响行数
+- 🔴 **禁止** 循环中逐条 update
+
+### 8.2 通用执行模板
+
+```java
+@Transactional
+public void batchUpdateStatus(List<Long> ids, int status) {
+    List<Long> batch = new ArrayList<>();
+    for (Long id : ids) {
+        batch.add(id);
+        if (batch.size() >= 500) {
+            int rows = xxxMapper.updateStatus(batch, status);
+            log.info("更新批次 {} 影响行数 {}", batch, rows);
+            batch.clear();
+        }
+    }
+    // 处理剩余
+    if (!batch.isEmpty()) {
+        xxxMapper.updateStatus(batch, status);
+    }
+}
+```
+
+---
+
+## 九、回滚方案
+
+### 9.1 三种回滚方式
+
+| 方式 | 适用场景 | 命令 |
+|------|----------|------|
+| **备份还原** | 数据库表 | `INSERT INTO target SELECT * FROM backup WHERE ...` |
+| **Git Revert** | 代码变更 | `git revert <commit>` |
+| **反向 SQL** | DDL / 数据迁移 | 提前准备反向 DROP / RENAME |
+
+### 9.2 回滚预案(必须预先生成)
+
+执行批量操作前**生成**回滚脚本,**单独保存**,与执行脚本对照。
+
+```sql
+-- 反向 SQL 示例
+UPDATE xxx SET status = 0 WHERE id IN (...);  -- 还原 status
+```
+
+---
+
+## 十、操作结果输出
+
+每次执行批量操作后,**必须**按以下格式输出:
+
+```markdown
+## 批量操作结果
+
+- **操作类型**:批量导入 / 批量导出 / 批量更新 / 批量删除
+- **影响行数**: 1000
+- **成功数**: 998
+- **失败数**: 2
+- **失败明细**:
+  1. 行 3: 手机号格式错误
+  2. 行 7: 关联记录不存在
+- **回滚方案**: 已生成备份表 `xxx_backup_20260825_1430`
+- **验证结果**: ✅ 行数一致 / ✅ 抽样核对一致 / ⚠️ 关联表 Y 已同步更新
+```
+
+---
+
+## 十一、一句话总结
+
+> **先备份 / 再分批 / 后验证 / 留回滚**。任何批量操作离开这四步,等于裸奔。

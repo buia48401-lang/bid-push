@@ -1,0 +1,209 @@
+---
+description: React / Next.js 编码规范——Server Component 优先、Hooks、组件设计、数据请求与状态边界(适配 Next.js 15 App Router + React 19 + Supabase)
+alwaysApply: false
+globs: **/*.ts, **/*.tsx, **/*.js, **/*.jsx
+enabled: true
+provider: project
+---
+
+# React / Next.js 编码规范（fe-react）
+
+> 本文件按 **Next.js 15 App Router + React 19 + TypeScript strict** 编写,并结合本项目约定收紧。
+> 🔴 与 `proj-nextjs-stack` / `proj-layer-boundary` / `proj-forbidden` 冲突时,**一律以 proj-* 为准**。
+
+---
+
+## 1. 技术栈(本项目锁定)
+
+| 维度 | 锁定值 |
+|------|--------|
+| 框架 | Next.js 15 App Router(禁止 Pages Router) |
+| UI | React 19,函数组件 + Hooks,禁止 Class Component |
+| 语言 | TypeScript 5 `strict: true`(禁止 `any` 消音,用 `unknown` + 收窄) |
+| UI 基元 | shadcn/ui(`components/ui/`,仅 CLI 生成,不手改内部实现) |
+| 样式 | Tailwind CSS 3.4 + `app/globals.css` CSS 变量 token |
+| 数据请求 | 服务端 `lib/data/**`(Supabase);客户端只 `fetch('/api/*')` |
+| 校验 | Zod,只放 `lib/validation/**` |
+| 测试 | Vitest(`tests/**/*.test.ts`) |
+| 包管理器 | npm(禁止 pnpm / yarn) |
+
+🔴 **禁止引入**:TanStack Query / SWR / axios / Redux / Zustand / Jotai / 第二套 UI 框架 / styled-components。当前只有 shadcn/ui + `fetch`,需要新增依赖必须先改 `proj-forbidden`。
+
+---
+
+## 2. 目录结构(本项目)
+
+```
+application/
+├── app/                 # 页面路由 + app/api/**/route.ts(Route Handler)
+│   ├── layout.tsx
+│   ├── announces/page.tsx
+│   ├── announces/[id]/page.tsx
+│   └── api/announces/route.ts
+├── components/
+│   ├── layout/          # 外壳(sidebar / topbar / breadcrumb)
+│   ├── common/          # 跨页面复用块(page-header / empty-state / error-state)
+│   └── ui/              # shadcn 基元(仅 CLI 生成)
+├── lib/
+│   ├── api/             # 统一信封、错误码、withRouteHandler
+│   ├── data/            # 数据访问 + 字段映射(唯一允许 snake_case 的业务层)
+│   ├── supabase/        # server(anon 只读)/ admin(service_role)
+│   ├── validation/      # Zod schema
+│   ├── constants/       # nav(导航)/ domain(业务枚举)
+│   └── utils/           # 纯函数(format 等)
+├── types/               # 接口类型 + 数据表行类型
+└── tests/               # Vitest
+```
+
+---
+
+## 3. 命名约定(项目约定覆盖社区习惯)
+
+| 类型 | 风格 | 例 |
+|------|------|------|
+| 组件文件 | **kebab-case**,导出名 PascalCase | `page-header.tsx` → `PageHeader` |
+| 页面文件 | `app/<route>/page.tsx` | `app/push-logs/page.tsx` |
+| Hooks | `useXxx` | `useAnnounceQuery` |
+| 类型 | `PascalCase` | `AnnounceListItem`、`PageResult<T>` |
+| 常量 | `UPPER_SNAKE_CASE` | `CONTENT_TEXT_MAX_LENGTH` |
+| 路由路径 | kebab-case | `/push-logs` |
+| Boolean | `isXxx` / `hasXxx` | `isLoading` |
+
+🔴 本项目**不用**社区常见的 `UserForm.tsx` 大驼峰文件名;详见 `proj-nextjs-stack` §2。
+
+---
+
+## 4. 组件强制规范
+
+### 4.1 基本要求(🔴)
+
+- 🔴 **必须** 函数组件,**禁止** Class Component
+- 🔴 **必须** 显式声明 Props 类型;Children 用 `ReactNode`,不用 `any`
+- ✅ 单组件 ≤ 300 行,超限拆子组件 / 抽 hook(文件行数上限见 `proj-nextjs-stack` §2)
+- ✅ Props 解构 + 参数级默认值
+- 🔴 **禁止** `<div onClick>` 模拟按钮 / 输入框,必须用 `<button>` / `<input>`(见 `proj-forbidden` §4)
+
+### 4.2 标准写法
+
+```tsx
+interface AnnounceTableProps {
+  items: AnnounceListItem[]
+  onSelect?: (id: string) => void
+}
+
+/** 公告列表表格:分页 + 类型筛选 + 抓取状态徽标 */
+export function AnnounceTable({ items, onSelect }: AnnounceTableProps) {
+  return (/* ... */);
+}
+```
+
+> 不必默认加 `memo` / `useCallback`——先 profile 再优化;后台管理系统以可读为先。
+
+---
+
+## 5. Hooks 规则
+
+### 5.1 硬规则(🔴 React Hooks Lint)
+
+- Hook 只在顶层调用,禁止放在条件 / 循环 / 提前 return 之后
+- 自定义 Hook 必须 `use` 开头
+
+### 5.2 useEffect 红线
+
+- ❌ 订阅事件 / 定时器不清理
+- ❌ 用 effect 同步可推导状态(应 `useMemo` 或渲染期直接计算)
+- ✅ 仅在真正需要副作用时用 effect;能用事件处理的别用 effect
+- ✅ Client Component 请求失败要有错误态,复用 `components/common/error-state.tsx`
+
+---
+
+## 6. 状态管理
+
+| 场景 | 本项目做法 |
+|------|-----------|
+| 组件本地 | `useState` / `useReducer` |
+| 父子共享 | props down / events up |
+| 跨页面全局 | 当前**无全局状态库**;确有需要先改 `proj-forbidden` 再引入 |
+
+🔴 **禁止**把服务端数据复制进本地 state 再手动同步——Server Component 直接把 props 传下去。
+
+---
+
+## 7. 数据请求(本项目唯一模式)
+
+### 7.1 两条路径,不可越界
+
+```
+Server Component(page.tsx) → await 直接调 lib/data/**(如 listAnnounces(query))
+Client Component          → fetch('/api/*') → 解析 { code, message, data, traceId } 信封
+Route Handler(route.ts)   → withRouteHandler(取参 → Zod 校验 → 调 lib/data)
+```
+
+### 7.2 🔴 红线
+
+- ❌ 组件(Client Component)里 `import '@/lib/data/**'` 或 `@/lib/supabase/**`
+- ❌ 浏览器端 `createClient(...)` 或出现 `SUPABASE_SERVICE_ROLE_KEY`
+- ❌ 手写 `NextResponse.json` / try-catch / traceId(统一 `withRouteHandler`)
+- ❌ 用 useEffect + fetch 自己造数据层缓存(TanStack Query 已被项目禁止)
+- ✅ 信封 `code !== 0` 必须走错误分支,禁止把 `data: null` 当空列表渲染
+
+---
+
+## 8. 表单与校验
+
+- Zod schema 只放 `lib/validation/**`,与 Route Handler 共用同一份
+- 控件用原生 `<input>` / `<button>` 或 shadcn/ui;🔴 禁止 div 模拟
+- 提交前先 `schema.safeParse`,字段级错误信息就近展示
+- 🔴 表单不引入 React Hook Form 等新库(需要时先改 `proj-forbidden`)
+
+---
+
+## 9. 性能
+
+| 维度 | 手段 |
+|------|------|
+| 列表渲染 | `key` 用稳定业务 ID(`detailUrl` / `id`),禁止 index |
+| Bundle | 大组件 `next/dynamic` 懒加载 |
+| 图片 | `next/image` |
+| 重渲染 | `memo` / `useCallback` 仅在实测瓶颈后使用 |
+
+---
+
+## 10. 错误边界
+
+- `app/error.tsx`(Client)已存在,是路由级兜底,**保留不动**
+- 页面内局部错误复用 `components/common/error-state.tsx`(带重试按钮)
+- 空态复用 `components/common/empty-state.tsx`;文案用常量,不硬编码
+
+---
+
+## 11. 测试(Vitest)
+
+```ts
+import { describe, expect, it } from 'vitest';
+
+describe('formatDateTime', () => {
+  it('空值返回占位符', () => {
+    expect(formatDateTime(null)).toBe('—');
+  });
+});
+```
+
+- 纯函数(`lib/utils` / `mappers` / `validation`)优先覆盖
+- 测试用户可见行为,不测实现细节;🔴 禁止测试中访问组件内部 state
+
+---
+
+## 12. Server / Client Component 边界
+
+- **默认 Server Component**;只有需要 `useState` / `useEffect` / 事件 / 浏览器 API 才加 `'use client'`
+- 当前已存在的 Client Component 仅 4 个(`sidebar` / `breadcrumb` / `error-state` / `app/error.tsx`),新增前必须先自问能否做成 Server Component
+- Server Component **禁止**传函数、`Date` 实例、Supabase client 给 Client Component(props 必须可序列化)
+- 详见 `proj-layer-boundary` §4
+
+---
+
+## 13. 一句话总结
+
+> **Server Component 优先 + 函数组件 + TS strict + fetch 信封 + Zod 收口**。
+> 数据只在 `lib/data`(服务端)与 `/api/*`(客户端)两条通道流动,效果与状态本地化,依赖新增先过 `proj-forbidden`。

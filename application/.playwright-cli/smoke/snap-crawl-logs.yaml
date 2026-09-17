@@ -1,0 +1,36 @@
+- generic [active] [ref=f4e1]:
+  - generic [ref=f4e2]:
+    - banner [ref=f4e3]:
+      - navigation "面包屑" [ref=f4e4]:
+        - link "首页" [ref=f4e5] [cursor=pointer]:
+          - /url: /
+        - generic [aria-hidden] [ref=f4e6]: /
+        - generic [ref=f4e7]: 抓取日志
+      - generic [ref=f4e8]:
+        - button "通知" [ref=f4e9] [cursor=pointer]
+        - generic [ref=f4e14]:
+          - generic [aria-hidden] [ref=f4e15]: 陈
+          - generic [ref=f4e16]: 陈钢
+    - generic [ref=f4e17]:
+      - complementary [ref=f4e18]:
+        - generic [ref=f4e19]:
+          - generic [aria-hidden] [ref=f4e20]: 招
+          - generic [ref=f4e21]: 招投标信息平台
+        - navigation "主导航" [ref=f4e22]:
+          - link "公告列表" [ref=f4e23] [cursor=pointer]:
+            - /url: /announces
+          - link "订阅管理" [ref=f4e27] [cursor=pointer]:
+            - /url: /subscriptions
+          - link "推送记录" [ref=f4e33] [cursor=pointer]:
+            - /url: /push-logs
+          - link "抓取日志" [ref=f4e39] [cursor=pointer]:
+            - /url: /crawl-logs
+      - main [ref=f4e45]:
+        - generic [ref=f4e47]:
+          - heading "抓取日志" [level=1] [ref=f4e48]
+          - paragraph [ref=f4e49]: 数据来源：bid_crawl_log
+        - generic [ref=f4e50]:
+          - paragraph [ref=f4e57]: 页面骨架已就绪
+          - paragraph [ref=f4e58]: 按执行轮次的源站等级、抓取总数、成功 / 失败 / 人工处理与备注将在页面模块中实现
+  - button "Open Next.js Dev Tools" [ref=f4e64] [cursor=pointer]
+  - alert [ref=f4e68]

@@ -1,0 +1,101 @@
+---
+description: 样式规范——Tailwind CSS + CSS 变量设计 token,色值收口、className 排序、动画与无障碍(适配 Tailwind-only 后台项目)
+alwaysApply: false
+globs: **/*.css
+enabled: true
+provider: project
+---
+
+# Tailwind / 样式规范（fe-css-tailwind）
+
+> 本项目为 **Tailwind CSS 3.4 + CSS 变量 token** 的桌面后台,无 SCSS / styled-components / CSS Modules / 移动端适配。
+> 🔴 与 `proj-nextjs-stack` §1、`proj-forbidden` §4 冲突时,以 proj-* 为准。
+
+---
+
+## 一、方案锁定(🔴)
+
+| 维度 | 本项目约定 |
+|------|-----------|
+| 样式方案 | **仅** Tailwind 工具类 + `app/globals.css` 的 CSS 变量 token |
+| 禁止引入 | SCSS / styled-components / CSS Modules / UNOCSS / 第二套 Tailwind 配置 |
+| 类命名 | 直接 Tailwind 工具类,**不用** BEM(无手写类名体系) |
+| 主题变量 | 只在 `app/globals.css` 的 `:root` token 定义处维护 |
+
+---
+
+## 二、色值收口(🔴 本项目最高频红线)
+
+- ❌ **禁止**在 `components/**`、`app/**/page.tsx` 里硬编码十六进制色值(`#0066cc`、`rgb(...)` 等)
+- ✅ 色值**只允许**写在 `app/globals.css` 的 token 定义处;静态图标资源(如 `app/icon.svg`)例外
+- ✅ 新增颜色:先在 `globals.css` 定义 `--x` token → 再经 `tailwind.config.ts` 映射或 `bg-[var(--x)]` 使用
+- ✅ 改主题只改 `:root` 变量,禁止同义 token 重复定义
+
+```tsx
+// ❌ 错误
+<div className="bg-[#f5f5f5] text-[#1a1a1a]" />
+
+// ✅ 正确
+<div className="bg-muted text-foreground" />
+```
+
+---
+
+## 三、className 书写
+
+### 3.1 排序约定
+
+```
+布局(layout) → 定位(position) → 尺寸(size) → 盒模型(box) →
+排版(typography) → 视觉(visual) → 交互(interaction) → 状态(state)
+```
+
+```tsx
+// ✅ 推荐顺序
+<div className="flex items-center justify-between w-full px-4 py-2 text-base text-foreground bg-card hover:bg-accent disabled:opacity-50" />
+```
+
+### 3.2 红线
+
+- ❌ 超长 className 堆叠(> 1 屏)——抽子组件或复合 token
+- ❌ `!important` 滥用(仅覆盖第三方库样式时允许,并注明原因)
+- ❌ Tailwind 与手写 CSS 写重复样式;手写 CSS 仅限 `globals.css` 的 token 与全局重置
+- ❌ JS 里 `element.style.color = ...` 硬编码样式值;状态切换一律走 className
+
+---
+
+## 四、布局
+
+- ✅ Flex(一维)/ Grid(二维)为主,`gap` 代替子元素 margin 撑开
+- ❌ `float` 布局、table 布局、`position: absolute` 滥用(覆盖层 / 徽标除外)
+- 本项目为桌面后台(侧栏 240px + 顶栏 56px),**移动端适配暂不涉及**;若未来需要,先另立规则再动手
+
+---
+
+## 五、动画
+
+- ✅ 只动 `transform` / `opacity` / `filter`,不动 `width` / `height` / `top` / `left`
+- ✅ 主交互路径动画 ≤ 300ms;提供 `prefers-reduced-motion` 降级:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+```
+
+---
+
+## 六、无障碍(A11y)
+
+- ✅ 文本与背景对比度 ≥ 4.5:1(正文)/ 3:1(大字)
+- ✅ `:focus-visible` 焦点样式可见
+- ✅ 图标按钮必须有 `aria-label`;纯装饰图标 `aria-hidden`
+- ✅ 交互元素用语义化 `<button>` / `<input>`(与 `proj-forbidden` §4 一致)
+- ✅ 状态不只靠颜色区分(如「待人工」同时有文案)
+
+---
+
+## 七、一句话总结
+
+> **token 收口(色值只写 globals.css)+ Tailwind 工具类唯一方案 + className 分组排序 + transform 动画 + 语义化标签**。
+> 想硬编码一个颜色时,先去 `globals.css` 加 token。

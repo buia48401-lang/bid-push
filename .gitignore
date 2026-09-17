@@ -1,0 +1,28 @@
+# 依赖
+node_modules/
+
+# 环境变量（严禁提交真实凭据）
+.env
+.env*.local
+
+# Next.js 构建产物
+.next/
+out/
+build/
+
+# 测试覆盖率
+coverage/
+
+# 系统与 IDE
+.DS_Store
+Thumbs.db
+*.pem
+*.log
+*.tsbuildinfo
+.idea/
+.vscode/
+
+# CodeBuddy 运行时数据（.codebuddy/rules/ 保留提交）
+.codebuddy/plans/
+.codebuddy/skills/
+.codebuddy/teams/

@@ -1,0 +1,36 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - navigation "面包屑" [ref=e4]:
+        - link "首页" [ref=e5] [cursor=pointer]:
+          - /url: /
+        - generic [aria-hidden] [ref=e6]: /
+        - generic [ref=e7]: 公告列表
+      - generic [ref=e8]:
+        - button "通知" [ref=e9] [cursor=pointer]
+        - generic [ref=e14]:
+          - generic [aria-hidden] [ref=e15]: 陈
+          - generic [ref=e16]: 陈钢
+    - generic [ref=e17]:
+      - complementary [ref=e18]:
+        - generic [ref=e19]:
+          - generic [aria-hidden] [ref=e20]: 招
+          - generic [ref=e21]: 招投标信息平台
+        - navigation "主导航" [ref=e22]:
+          - link "公告列表" [ref=e23] [cursor=pointer]:
+            - /url: /announces
+          - link "订阅管理" [ref=e27] [cursor=pointer]:
+            - /url: /subscriptions
+          - link "推送记录" [ref=e33] [cursor=pointer]:
+            - /url: /push-logs
+          - link "抓取日志" [ref=e39] [cursor=pointer]:
+            - /url: /crawl-logs
+      - main [ref=e45]:
+        - generic [ref=e47]:
+          - heading "公告列表" [level=1] [ref=e48]
+          - paragraph [ref=e49]: 数据来源：bid_announce
+        - generic [ref=e50]:
+          - paragraph [ref=e57]: 页面骨架已就绪
+          - paragraph [ref=e58]: 关键词 / 地区 / 公告类型 / 发布时间 / 来源站点筛选与公告表格将在页面模块中实现
+  - button "Open Next.js Dev Tools" [ref=e64] [cursor=pointer]
+  - alert [ref=e68]

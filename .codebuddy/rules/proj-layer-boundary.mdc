@@ -1,0 +1,84 @@
+---
+description: 招投标推送系统分层边界与单向依赖、Server/Client 边界、Supabase 双客户端选型（任何跨层调用或数据访问前必读）
+alwaysApply: true
+enabled: true
+provider: project
+---
+
+# 项目规约 · 分层边界与数据访问
+
+> 依据 `docs/architecture.md` §5.1。**依赖方向是单向的，反向依赖一律视为缺陷。**
+
+## 1. 允许的依赖方向
+
+```
+app/**/page.tsx        (Server Component)  →  lib/data/**  →  lib/supabase/**
+app/api/**/route.ts    (Route Handler)     →  lib/api/** + lib/validation/**  →  lib/data/**  →  lib/supabase/**
+components/**          →  fetch('/api/*')            🔴 到此为止
+lib/**  types/**       →  纯类型与纯函数，不得反向 import app/ 或 components/
+```
+
+🔴 **禁止**：`lib/**` 里 import `app/**` 或 `components/**`；`components/**` 里 import `lib/data/**` 或 `lib/supabase/**`。
+
+❌ 反例：在 `components/common/empty-state.tsx` 里 `import { listAnnounces } from '@/lib/data/announces'`。
+✅ 正例：Client Component 用 `fetch('/api/announces?...')`，Server Component 直接调 `lib/data/**`。
+
+## 2. Supabase 双客户端选型（不可混用）
+
+| 客户端 | 文件 | 凭据 | 能做什么 |
+| --- | --- | --- | --- |
+| 只读 | `lib/supabase/server.ts` → `getServerClient()` | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 受 RLS 约束的 SELECT：公告、详情、推送日志、抓取日志 |
+| 高权限 | `lib/supabase/admin.ts` → `getAdminClient()` | `SUPABASE_SERVICE_ROLE_KEY` | 绕过 RLS：`bid_subscription` 的读与写 |
+
+| 接口 | 必须使用的客户端 |
+| --- | --- |
+| `GET /api/announces`、`GET /api/announces/{id}` | `getServerClient()` |
+| `GET /api/push-logs`、`GET /api/crawl-logs` | `getServerClient()` |
+| `GET /api/subscriptions`、`POST /api/subscriptions`、`PUT /api/subscriptions/{id}` | `getAdminClient()` |
+
+**为什么订阅必须走 service_role**：迁移 `002_app_fields_migration.sql` 启用 RLS 后，`bid_subscription` 不对 `anon` 开放任何策略，用 anon 读会**静默返回 0 行**而非报错。
+
+## 3. 客户端初始化是强制的
+
+🔴 一律通过 `getServerClient()` / `getAdminClient()` 获取实例，**禁止**在业务代码里 `createClient(...)`。
+🔴 **禁止**在模块顶层调用这两个函数（会破坏惰性初始化，导致无凭据时 `npm run build` 直接失败）。必须在函数体内调用。
+
+```ts
+// ✅ 正例：在函数体内惰性获取
+export async function listAnnounces() {
+  const supabase = getServerClient();
+  // ...
+}
+```
+
+缺失环境变量由 `lib/supabase/env.ts` 抛 `ApiError(DB_UNAVAILABLE)` → 统一映射为 HTTP 503，不要在业务层自己判空。
+
+## 4. Server / Client Component 边界
+
+- 默认 Server Component；只有确实需要 `useState` / `useEffect` / 事件 / 浏览器 API 时才加 `'use client'`。
+- 当前已存在的 Client Component 仅 4 个，新增前必须先自问能否做成 Server Component：
+  | 文件 | 为什么必须 Client |
+  | --- | --- |
+  | `components/layout/sidebar.tsx` | 读 `usePathname()` 做菜单高亮 |
+  | `components/layout/breadcrumb.tsx` | 读 `usePathname()` 推导层级 |
+  | `components/common/error-state.tsx` | 重试按钮需要 `onClick` 回调 |
+  | `app/error.tsx` | Next 路由错误边界强制要求 Client |
+- Server Component **禁止**传递函数、`Date` 实例、Supabase client 给 Client Component。
+
+## 5. 字段映射只在 `lib/data/**`
+
+- `snake_case`（数据库）↔ `camelCase`（接口）的转换函数**集中在** `lib/data/mappers.ts`，别处不得重复实现。
+- 例外（契约 §5）：`bid_detail.structured` 的 JSONB **内部键保持 `snake_case`**，由 `mapStructured()` 单独映射为 camelCase 输出。
+- 页面与组件只消费 camelCase 类型（`types/announce.ts` 等），不得直接写 `row.announce_type`。
+
+## 6. 查询下推（性能红线）
+
+- 🔴 **禁止 `select('*')`**，必须显式列出契约需要的列。
+- 🔴 **禁止把全表拉到应用层**再分页 / 过滤 / 统计：分页用 `.range()` + `{ count: 'exact' }`，过滤排序用 PostgREST 链式条件，统计用数据库聚合。
+- 🔴 **禁止 N+1**：`push-logs` 必须用嵌套 select 一次取回关联名称，如 `select('..., subscription:bid_subscription(name), announce:bid_announce(title)')`。
+- 大字段（`content_text`）必须截断（上限见 `CONTENT_TEXT_MAX_LENGTH`）后再返回。
+
+## 7. 数据层未实现时的唯一出口
+
+查询体未实现时统一调用 `unimplemented('<契约章节>')`（`lib/api/errors.ts`），它抛 `INTERNAL` 并在 message 中标注章节。
+🔴 **禁止**为了「先跑通」而返回假数据、空数组或 `null` 冒充业务结果；实现后必须删掉该调用。
