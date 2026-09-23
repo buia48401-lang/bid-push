@@ -12,9 +12,9 @@ export default function NotFound() {
         <FileQuestion strokeWidth={1.75} className="h-5 w-5 text-ink-3" />
       </span>
       <p className="text-card-title font-medium text-ink-1">页面不存在</p>
-      <p className="text-hint text-ink-3">链接可能已失效，或该条记录尚未入库</p>
-      <Link href="/announces" className="link-text text-body">
-        返回公告列表
+      <p className="text-hint text-ink-3">链接可能已失效，或该页面尚未开发</p>
+      <Link href="/" className="link-text text-body">
+        返回首页
       </Link>
     </section>
   );

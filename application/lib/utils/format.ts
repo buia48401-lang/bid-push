@@ -1,9 +1,13 @@
-import { EMPTY_PLACEHOLDER } from '@/lib/constants/domain';
+import { EMPTY_PLACEHOLDER } from '@/lib/constants/ui';
 
 /**
- * 业务时区：服务端与浏览器按同一时区格式化，
- * 既符合业务口径，也避免 React hydration 前后文本不一致。
+ * 展示格式化纯函数（列表 / 详情页共用）。
+ *
+ * 时间统一按固定时区渲染：服务端时区不确定（容器常为 UTC），
+ * 固定时区保证日期边界渲染稳定、可测，且避免 React hydration 前后文本不一致。
  */
+
+/** 展示时区：按项目业务所在时区配置 */
 export const APP_TIME_ZONE = 'Asia/Shanghai';
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('sv-SE', {
@@ -33,33 +37,21 @@ function toDate(value: string | null | undefined): Date | null {
   return Number.isNaN(timestamp) ? null : new Date(timestamp);
 }
 
-/** `YYYY-MM-DD`；空值或非法值返回「—」 */
+/** ISO 时间 → `YYYY-MM-DD`；空值或非法值返回占位符 */
 export function formatDate(value: string | null | undefined): string {
   const date = toDate(value);
 
   return date ? DATE_FORMATTER.format(date) : EMPTY_PLACEHOLDER;
 }
 
-/** `YYYY-MM-DD HH:mm`；空值或非法值返回「—」 */
+/** ISO 时间 → `YYYY-MM-DD HH:mm`；空值或非法值返回占位符 */
 export function formatDateTime(value: string | null | undefined): string {
   const date = toDate(value);
 
   return date ? DATE_TIME_FORMATTER.format(date) : EMPTY_PLACEHOLDER;
 }
 
-/** 元 → 万元，千分位 + 2 位小数（product-design.md §4.2） */
-export function formatBudgetWan(budget: number | null | undefined): string {
-  if (budget === null || budget === undefined || !Number.isFinite(budget)) {
-    return EMPTY_PLACEHOLDER;
-  }
-
-  return (budget / 10000).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-/** 纯数字千分位；用于统计卡 */
+/** 纯数字千分位；用于统计卡 / 表格计数列 */
 export function formatCount(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return EMPTY_PLACEHOLDER;
@@ -69,8 +61,8 @@ export function formatCount(value: number | null | undefined): string {
 }
 
 /**
- * Webhook 脱敏：`https://open.feishu.cn/.../881ed***`
- * 依据 api-contract.md §3.3 —— 列表展示不得暴露完整地址。
+ * Webhook / 回调地址脱敏：`https://example.com/hook/881ed***`
+ * 展示层禁止暴露完整地址，防止凭据泄露。
  */
 export function maskWebhookUrl(url: string | null | undefined): string {
   if (typeof url !== 'string' || url.trim() === '') {
@@ -84,23 +76,4 @@ export function maskWebhookUrl(url: string | null | undefined): string {
   }
 
   return `${url.slice(0, lastSlash + 1)}${url.slice(lastSlash + 1, lastSlash + 6)}***`;
-}
-
-/** 距投标截止时间的剩余天数；已过期为负，非法或空值为 null */
-export function daysUntil(
-  deadline: string | null | undefined,
-  now: Date = new Date(),
-): number | null {
-  const date = toDate(deadline);
-
-  return date ? Math.ceil((date.getTime() - now.getTime()) / 86_400_000) : null;
-}
-
-/** 成功率：0~100，保留 1 位小数；无数据为 0（api-contract.md §3.6） */
-export function successRate(success: number, total: number): number {
-  if (total <= 0) {
-    return 0;
-  }
-
-  return Math.round((success / total) * 1000) / 10;
 }

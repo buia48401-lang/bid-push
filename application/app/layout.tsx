@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
 
 import { AppShell } from '@/components/layout/app-shell';
+import { APP_TITLE } from '@/lib/constants/ui';
 
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '招投标信息平台',
-  description: '招投标公告采集、订阅匹配与飞书推送的内部后台',
+  title: APP_TITLE,
+  description: '基于 Next.js 15 + Supabase 的中后台管理框架',
 };
 
 export default function RootLayout({ children }: React.PropsWithChildren) {

@@ -8,8 +8,7 @@ let cachedClient: SupabaseClient | null = null;
  * 服务端只读客户端（anon key，受 RLS 约束）。
  *
  * 惰性初始化：不在模块顶层读取 env，否则无凭据时 `npm run build` 会在构建期直接抛错。
- * 依据 docs/api-contract.md §4：GET /api/announces、/api/announces/{id}、
- * /api/push-logs、/api/crawl-logs 走本客户端。
+ * 适用范围：面向浏览器的公开只读数据（受 RLS 约束的 SELECT）。
  */
 export function getServerClient(): SupabaseClient {
   if (cachedClient) {

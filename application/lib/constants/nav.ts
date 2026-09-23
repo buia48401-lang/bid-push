@@ -1,6 +1,8 @@
 /**
  * 导航元数据的单一事实源：同时驱动侧栏菜单、顶栏面包屑与页面标题。
- * 依据 docs/product-design.md §3.1 / §3.2 —— 侧栏 4 个菜单项，公告详情页仍高亮「公告列表」。
+ *
+ * 机制：NAV_ITEMS / DETAIL_ROUTES 是纯数据，新增业务模块时在此登记一条即可，
+ * 侧栏、面包屑、页面标题随之生效；详情路由登记后自动复用父级菜单高亮。
  */
 
 export type NavIcon = 'list' | 'bell' | 'send' | 'doc';
@@ -41,42 +43,17 @@ export type NavResolution = {
 
 export const NAV_ITEMS: NavItem[] = [
   {
-    key: 'announces',
-    label: '公告列表',
-    href: '/announces',
+    key: 'demo',
+    label: '示例模块',
+    href: '/demo',
     icon: 'list',
-    sourceTable: 'bid_announce',
-    matchPrefixes: ['/announces'],
-  },
-  {
-    key: 'subscriptions',
-    label: '订阅管理',
-    href: '/subscriptions',
-    icon: 'bell',
-    sourceTable: 'bid_subscription',
-    matchPrefixes: ['/subscriptions'],
-  },
-  {
-    key: 'push-logs',
-    label: '推送记录',
-    href: '/push-logs',
-    icon: 'send',
-    sourceTable: 'bid_push_log',
-    matchPrefixes: ['/push-logs'],
-  },
-  {
-    key: 'crawl-logs',
-    label: '抓取日志',
-    href: '/crawl-logs',
-    icon: 'doc',
-    sourceTable: 'bid_crawl_log',
-    matchPrefixes: ['/crawl-logs'],
+    sourceTable: 'demo_item',
+    matchPrefixes: ['/demo'],
   },
 ];
 
-export const DETAIL_ROUTES: DetailRoute[] = [
-  { prefix: '/announces/', parentKey: 'announces', label: '公告详情' },
-];
+/** 详情路由登记表：如 { prefix: '/demo/', parentKey: 'demo', label: '示例详情' } */
+export const DETAIL_ROUTES: DetailRoute[] = [];
 
 export const HOME_CRUMB: Crumb = { label: '首页', href: '/' };
 

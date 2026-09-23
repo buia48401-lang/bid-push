@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Bell, FileText, List, Send, type LucideIcon } from 'lucide-react';
 
 import { NAV_ITEMS, resolveNavigation, type NavIcon } from '@/lib/constants/nav';
+import { APP_LOGO_MARK, APP_TITLE } from '@/lib/constants/ui';
 import { cn } from '@/lib/utils';
 
 const NAV_ICONS: Record<NavIcon, LucideIcon> = {
@@ -16,7 +17,7 @@ const NAV_ICONS: Record<NavIcon, LucideIcon> = {
 
 /**
  * 左侧导航：240px（<1200px 收窄 200px）。
- * 选中态 = 浅蓝底 + 左侧 3px 蓝条 + 蓝色 500 字重；公告详情页复用「公告列表」高亮。
+ * 选中态 = 浅蓝底 + 左侧 3px 蓝条 + 蓝色 500 字重；详情页复用父级菜单高亮。
  */
 export function Sidebar() {
   const pathname = usePathname();
@@ -26,9 +27,9 @@ export function Sidebar() {
     <aside className="flex w-sidebar flex-none flex-col bg-card narrow:w-sidebar-narrow">
       <div className="flex h-topbar flex-none items-center gap-2.5 pl-5">
         <span className="logo-mark" aria-hidden="true">
-          招
+          {APP_LOGO_MARK}
         </span>
-        <span className="text-[15px] font-semibold text-ink-1">招投标信息平台</span>
+        <span className="text-[15px] font-semibold text-ink-1">{APP_TITLE}</span>
       </div>
 
       <nav className="flex flex-col gap-1 p-3" aria-label="主导航">

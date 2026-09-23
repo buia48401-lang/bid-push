@@ -1,6 +1,7 @@
 import { Bell } from 'lucide-react';
 
 import { Breadcrumb } from '@/components/layout/breadcrumb';
+import { APP_USER_NAME } from '@/lib/constants/ui';
 
 /** 顶栏 56px：左侧面包屑，右侧铃铛 + 竖分隔线 + 静态用户（MVP 无登录） */
 export function Topbar() {
@@ -24,9 +25,9 @@ export function Topbar() {
             aria-hidden="true"
             className="flex h-7 w-7 items-center justify-center rounded-full bg-brand text-hint font-medium text-white"
           >
-            陈
+            {APP_USER_NAME.slice(0, 1)}
           </span>
-          <span className="text-body text-ink-1">陈钢</span>
+          <span className="text-body text-ink-1">{APP_USER_NAME}</span>
         </div>
       </div>
     </header>
