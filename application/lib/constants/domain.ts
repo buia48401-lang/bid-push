@@ -51,6 +51,9 @@ export const ALL_TYPES_LABEL = '全部类型';
 /** 公告详情正文摘要回退展示的截断长度（api-contract.md §3.2） */
 export const CONTENT_TEXT_MAX_LENGTH = 2000;
 
+/** 详情页正文摘要卡回退展示 content_text 的截断长度（product-design.md §5.3） */
+export const SUMMARY_FALLBACK_MAX_LENGTH = 300;
+
 export function channelLabel(channel: string): string {
   return CHANNEL_LABELS[channel as SubscriptionChannel] ?? channel;
 }

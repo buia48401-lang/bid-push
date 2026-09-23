@@ -1,7 +1,9 @@
-# BidPushSystem · AI 协作入口
+# CODEBUDDY.md · BidPushSystem
 
-> 本文件是 AI 在本仓库工作的**唯一入口**：先读这里，再按指引读 `.codebuddy/rules/` 与 `docs/`。
-> 本文件只承载「事实与索引」；**可执行的硬约束只写一份**，放在 `.codebuddy/rules/proj-*.mdc`，此处不重复正文。
+This file provides guidance to CodeBuddy when working with code in this repository.
+
+本文件是 AI 在本仓库工作的**唯一入口**：先读这里，再按指引读 `.codebuddy/rules/` 与 `docs/`。
+本文件只承载「事实与索引」；**可执行的硬约束只写一份**，放在 `.codebuddy/rules/proj-*.mdc`，此处不重复正文。
 
 ---
 
@@ -54,6 +56,22 @@ BidPushSystem/
    └─ tests/                    Vitest
 ```
 
+### 一次请求的完整链路（理解本仓库的关键）
+
+```
+Server Component (app/**/page.tsx) ──直接调用──▶ lib/data/** ──▶ lib/supabase/server|admin ──▶ Supabase
+Client Component (components/**)  ──fetch('/api/*')──▶ app/api/**/route.ts
+                                                        │ withRouteHandler 包裹：取参 → Zod 校验
+                                                        │ (lib/validation) → 调 lib/data → 返回数据
+                                                        └─ 信封 { code, message, data, traceId } 与
+                                                           错误码映射由 lib/api 统一处理
+```
+
+- 依赖方向单向：`app → lib/data → lib/supabase`；`components` 到 `fetch('/api/*')` 为止；`lib/**` 不得反向 import `app/**`、`components/**`。
+- **双 Supabase 客户端**：只读查询走 `getServerClient()`（anon，受 RLS）；订阅读写走 `getAdminClient()`（service_role）。两者均须**在函数体内惰性获取**，禁止模块顶层调用，禁止业务代码里直接 `createClient(...)`。
+- 字段映射只发生在 `lib/data/mappers.ts`；页面与组件只消费 camelCase 类型（`types/**`）。
+- 5 张表：`bid_announce`（公告）、`bid_detail`（公告详情）、`bid_subscription`（订阅，应用侧唯一可写表）、`bid_crawl_log`（抓取日志）、`bid_push_log`（推送记录，靠 `uk_push` 幂等）。接口路径固定 7 条、错误码只有 `0/400/404/500/503`，均不可新增（事实源 `docs/api-contract.md`）。
+
 ---
 
 ## 3. 技术栈与版本（锁定，不得擅自升大版本）
@@ -75,13 +93,17 @@ BidPushSystem/
 
 ## 4. 常用命令（在 `application/` 下执行）
 
+先准备环境变量：复制 `.env.example` 为 `.env.local` 并填入 Supabase 凭据（`NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`）。缺失时接口统一返回 `503 DB_UNAVAILABLE`。
+
 ```bash
 npm run dev        # 本地开发
 npm run build      # 生产构建（含 Next 路由类型校验）
 npm run start      # 启动生产产物
 npm run lint       # ESLint
 npm run typecheck  # tsc --noEmit
-npm run test       # Vitest
+npm run test                           # 全量 Vitest（tests/**/*.test.ts）
+npx vitest run tests/announces.test.ts # 运行单个测试文件
+npx vitest run -t "用例名"              # 运行单个用例
 ```
 
 改动完成后**必须**至少跑通 `npm run lint && npm run typecheck && npm run build`。

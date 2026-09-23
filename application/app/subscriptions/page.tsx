@@ -1,15 +1,12 @@
-import { PageHeader } from '@/components/common/page-header';
-import { PagePlaceholder } from '@/components/common/page-placeholder';
-import { getNavItem, sourceNote } from '@/lib/constants/nav';
+import { SubscriptionBoard } from '@/components/subscription/subscription-board';
+import { listSubscriptions } from '@/lib/data/subscriptions';
 
-const NAV = getNavItem('subscriptions');
+/** 订阅为可写资源，禁止任何形式的静态化（与 /api/subscriptions 的 Route Handler 同约束） */
+export const dynamic = 'force-dynamic';
 
-/** 页面 3 · 订阅管理（骨架，业务界面待实现） */
-export default function SubscriptionsPage() {
-  return (
-    <>
-      <PageHeader title={NAV.label} note={sourceNote(NAV.sourceTable)} />
-      <PagePlaceholder description="订阅列表、启用状态开关与新建 / 编辑弹窗（Zod 校验）将在页面模块中实现" />
-    </>
-  );
+/** 页面 3 · 订阅管理（product-design.md §6）：标题行 + 表格卡 + 新建/编辑弹窗，无分页 */
+export default async function SubscriptionsPage() {
+  const result = await listSubscriptions();
+
+  return <SubscriptionBoard initial={result} />;
 }
