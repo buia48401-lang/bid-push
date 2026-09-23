@@ -9,7 +9,7 @@ This file provides guidance to CodeBuddy when working with code in this reposito
 
 ## 1. 系统做什么
 
-> **2026-09 框架化改造**：`application/` 已从招投标业务后台**抽离为通用中后台框架骨架**（业务页面 / 接口 / 数据层已删除，保留通用层 + `/demo` 示例模块）。下表描述的是**原业务系统形态**，`docs/` 与 `n8n/sql/` 仍为其只读事实源；`application/` 的当前形态见 `application/README.md`。
+> **2026-09 框架化改造**：`application/` 已从招投标业务后台**抽离为通用中后台框架骨架**（业务页面 / 接口 / 数据层已删除，保留通用层 + `/demo` 示例模块）。下表描述的是**原业务系统形态**，`docs/` 与 `sql/` 仍为其只读事实源；`application/` 的当前形态见 `application/README.md`。
 
 招投标信息推送平台的内部后台。整条链路的职责边界：
 
@@ -41,11 +41,9 @@ BidPushSystem/
 ├─ .codebuddy/rules/            ← 项目级差异规则（proj-*.mdc）
 ├─ docs/                        ← 🔴 只读设计事实源，不得修改
 │  ├─ 系统设计.md  requirements.md  architecture.md  api-contract.md  product-design.md
-│  ├─ 招投标信息平台-产品设计.html   （视觉原型）
-│  └─ 初始化.sql                 （历史副本，已被 n8n/sql/001 取代，不再维护）
-├─ n8n/sql/                     ← 数据库结构唯一维护副本
-│  ├─ 001_bid_schema.sql             基线（5 表 / 索引 / 触发器 / 种子订阅）
-│  └─ 002_app_fields_migration.sql   增量（补字段 / 改类型 / 索引 / RLS）
+│  └─ 招投标信息平台-产品设计.html   （视觉原型）
+├─ sql/                         ← 数据库结构唯一维护副本
+│  └─ bid_schema_full.sql            全量基线（5 表 / 索引 / 触发器 / RLS / 种子订阅；由 001 + 002 + 初始化.sql 合并，原文件已删除）
 └─ application/                 ← Next.js 框架骨架（详见 application/README.md）
    ├─ app/                      页面路由（/demo，演示专用）+ app/api/demo Route Handler
    ├─ components/               layout（外壳）/ common（状态块）/ ui（shadcn 基元）

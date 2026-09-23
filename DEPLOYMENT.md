@@ -71,7 +71,7 @@ components/**      (Client Component) ──fetch('/api/*')──▶ app/api/**/
 | --- | --- |
 | `CODEBUDDY.md` | AI/开发入口索引（事实与规则导航） |
 | `docs/` | 🔴 **只读设计事实源**（系统设计 / 架构 / api-contract / 产品设计），不得修改 |
-| `n8n/sql/` | 数据库唯一维护副本：`001_bid_schema.sql`（基线）+ `002_app_fields_migration.sql`（迁移+RLS） |
+| `sql/` | 数据库唯一维护副本：`bid_schema_full.sql`（全量基线：5 表 / 索引 / 触发器 / RLS / 种子订阅） |
 | `.codebuddy/rules/` | 项目硬约束（技术栈 / 分层边界 / 术语 / 禁止清单） |
 | `openspec/` | 变更管理（changes / specs） |
 | `application/` | Next.js 应用主体 |
@@ -109,7 +109,7 @@ application/
 | 接口逻辑 | `app/api/**/route.ts` + `lib/data/**` |
 | 字段映射（snake_case ↔ camelCase） | `lib/data/mappers.ts` |
 | 业务枚举与中文文案 | `lib/constants/domain.ts` |
-| 表结构变更 | 新建 `n8n/sql/003_xxx.sql`（🔴 禁止修改 001 基线） |
+| 表结构变更 | 新建 `sql/003_xxx.sql`（🔴 禁止修改 `bid_schema_full.sql` 基线） |
 | 设计问题 | 先改 `docs/` 并确认（docs 只读，需人工审核） |
 
 ---
@@ -136,11 +136,10 @@ npm ci
 #    NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY
 #    🔴 service_role 只留服务端，禁止加 NEXT_PUBLIC_ 前缀，禁止提交入库
 
-# ③ 初始化数据库：Supabase Dashboard → SQL Editor，按序粘贴执行
-#    n8n/sql/001_bid_schema.sql            （基线：5 表 / 索引 / 触发器 / 种子订阅）
-#    n8n/sql/002_app_fields_migration.sql  （补字段 / 改类型 / RLS）
-#    两份脚本均幂等，可重复执行
-#    ⚠️ 002 执行后 RLS 生效：订阅表无 anon 策略，读写订阅必须走 service_role
+# ③ 初始化数据库：Supabase Dashboard → SQL Editor，粘贴执行（单文件全量）
+#    sql/bid_schema_full.sql              （全量基线：5 表 / 索引 / 触发器 / RLS / 种子订阅）
+#    脚本幂等，可重复执行；兼容「仅执行过旧 001」的环境（自动补列 / publish_date 类型转换）
+#    ⚠️ 执行后 RLS 生效：订阅表无 anon 策略，读写订阅必须走 service_role
 
 # ④ 启动开发服务
 npm run dev        # http://localhost:3000
