@@ -1,4 +1,5 @@
 import { toIsoString, toNumber, toText } from '@/lib/data/normalize';
+import { queryMockDemoItems } from '@/lib/data/demo.mock';
 import { toQueryError } from '@/lib/supabase/errors';
 import { getServerClient } from '@/lib/supabase/server';
 import type { PageResult } from '@/types/api';
@@ -7,6 +8,15 @@ import type { DemoQuery } from '@/lib/validation/demo';
 
 /** 显式列清单：契约需要哪些列就查哪些（🔴 禁止 select('*')） */
 const DEMO_COLUMNS = 'id,title,category,amount,status,created_at';
+
+/**
+ * 演示模式开关：`DEMO_USE_MOCK=true` 时 demo 模块返回内置示例数据（lib/data/demo.mock.ts），
+ * 不连接 Supabase —— 供框架离线演示 / 评审使用；连真实库时改为 false 或删掉该变量。
+ * 每次调用时读取（惰性），与 Supabase 客户端同一哲学，改 env 重启即生效。
+ */
+export function isDemoMockMode(): boolean {
+  return process.env.DEMO_USE_MOCK === 'true';
+}
 
 /**
  * demo_item 行 → 接口字段。
@@ -29,6 +39,10 @@ export function mapDemoItem(row: DemoRow): DemoItem {
  * - `keyword` 用 ilike 下推模糊匹配，空值（schema 已归一 undefined）不下发条件。
  */
 export async function listDemoItems(query: DemoQuery): Promise<PageResult<DemoItem>> {
+  if (isDemoMockMode()) {
+    return queryMockDemoItems(query);
+  }
+
   const supabase = getServerClient();
 
   const from = (query.page - 1) * query.pageSize;

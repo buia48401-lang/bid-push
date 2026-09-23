@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/common/page-header';
 import { Pagination } from '@/components/common/pagination';
 import { getNavItem, sourceNote } from '@/lib/constants/nav';
 import { EMPTY_PLACEHOLDER } from '@/lib/constants/ui';
-import { listDemoItems } from '@/lib/data/demo';
+import { isDemoMockMode, listDemoItems } from '@/lib/data/demo';
 import { formatCount, formatDateTime } from '@/lib/utils/format';
 import { DemoQuerySchema } from '@/lib/validation/demo';
 import type { DemoItem } from '@/types/demo';
@@ -73,9 +73,14 @@ export default async function DemoPage({ searchParams }: DemoPageProps) {
     failed = true;
   }
 
+  const mockMode = isDemoMockMode();
+
   return (
     <>
-      <PageHeader title={NAV.label} note={sourceNote(NAV.sourceTable)} />
+      <PageHeader
+        title={NAV.label}
+        note={mockMode ? '演示数据 · 未连接数据库（DEMO_USE_MOCK=true）' : sourceNote(NAV.sourceTable)}
+      />
 
       {failed ? (
         <section className="surface-card flex flex-1 items-center justify-center">

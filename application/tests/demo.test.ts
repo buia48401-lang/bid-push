@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { mapDemoItem } from '@/lib/data/demo';
+import { isDemoMockMode, mapDemoItem } from '@/lib/data/demo';
+import { MOCK_DEMO_ITEMS, queryMockDemoItems } from '@/lib/data/demo.mock';
 import { DemoQuerySchema } from '@/lib/validation/demo';
 
 describe('mapDemoItem（snake_case → camelCase 映射）', () => {
@@ -67,5 +68,59 @@ describe('DemoQuerySchema（查询参数归一）', () => {
   it('非法 page / 超上限 pageSize 触发校验失败', () => {
     expect(DemoQuerySchema.safeParse({ page: 'abc' }).success).toBe(false);
     expect(DemoQuerySchema.safeParse({ pageSize: '101' }).success).toBe(false);
+  });
+});
+
+describe('演示模式（DEMO_USE_MOCK）', () => {
+  it('isDemoMockMode 读取环境变量，缺省关闭', () => {
+    const original = process.env.DEMO_USE_MOCK;
+
+    delete process.env.DEMO_USE_MOCK;
+    expect(isDemoMockMode()).toBe(false);
+
+    process.env.DEMO_USE_MOCK = 'true';
+    expect(isDemoMockMode()).toBe(true);
+
+    process.env.DEMO_USE_MOCK = original;
+  });
+});
+
+describe('queryMockDemoItems（内存模拟数据库行为）', () => {
+  it('默认分页：首页 20 条、总数 25（分页组件可演示翻页）', () => {
+    const result = queryMockDemoItems({ page: 1, pageSize: 20 });
+
+    expect(result.total).toBe(25);
+    expect(result.list).toHaveLength(20);
+    expect(result.page).toBe(1);
+  });
+
+  it('第二页返回剩余 5 条', () => {
+    const result = queryMockDemoItems({ page: 2, pageSize: 20 });
+
+    expect(result.list).toHaveLength(5);
+    expect(result.list[0].id).toBe(5);
+  });
+
+  it('id 倒序：最新（id 最大）排最前，与真实链路 order by id desc 对齐', () => {
+    const result = queryMockDemoItems({ page: 1, pageSize: 20 });
+
+    expect(result.list[0].id).toBe(MOCK_DEMO_ITEMS.length);
+  });
+
+  it('keyword 模糊过滤并精确计数', () => {
+    const result = queryMockDemoItems({ page: 1, pageSize: 20, keyword: '信封' });
+
+    expect(result.total).toBeGreaterThan(0);
+    expect(result.total).toBeLessThan(25);
+    result.list.forEach((item) => {
+      expect(item.title).toContain('信封');
+    });
+  });
+
+  it('无命中关键词返回空列表而非报错（与数据库行为一致）', () => {
+    const result = queryMockDemoItems({ page: 1, pageSize: 20, keyword: '不存在的关键词' });
+
+    expect(result.total).toBe(0);
+    expect(result.list).toEqual([]);
   });
 });

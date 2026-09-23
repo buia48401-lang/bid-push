@@ -8,13 +8,20 @@
 # 1. 安装依赖（仅 npm，禁止 pnpm / yarn）
 npm install
 
-# 2. 配置环境变量：复制 .env.example 为 .env.local，填入 Supabase 凭据
-# 3. （可选）执行下文「示例数据」中的 demo 表 SQL
-# 4. 启动
+# 2. 复制 .env.example 为 .env.local（默认 DEMO_USE_MOCK=true，开箱即演示，无需数据库）
+# 3. 启动 —— /demo 立即可见 25 条演示数据、搜索与分页
 npm run dev
 ```
 
-未配置环境变量时，所有接口统一返回 `503 DB_UNAVAILABLE`，页面展示错误态。
+**开箱即演示（默认）**：`DEMO_USE_MOCK=true` 时 demo 模块返回内置示例数据，不连接 Supabase，页面标题下方会明示「演示数据 · 未连接数据库」。
+
+**连接真实数据库**（三步）：
+
+1. `.env.local` 中 `DEMO_USE_MOCK` 改为 `false`（或删除该行），并填入 Supabase 凭据；
+2. 执行下文「示例数据」中的 demo 表 SQL；
+3. 重启 `npm run dev`。
+
+未配置凭据且演示模式关闭时，接口统一返回 `503 DB_UNAVAILABLE`，页面展示错误态。
 
 ## 技术栈
 
@@ -36,6 +43,7 @@ npm run dev
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 项目地址 | 浏览器可见 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 只读查询（受 RLS 约束） | 浏览器可见 |
 | `SUPABASE_SERVICE_ROLE_KEY` | 绕过 RLS 的高权限读写 | 🔴 仅服务端 |
+| `DEMO_USE_MOCK` | demo 演示模式（`true` = 内置示例数据，不连库；缺省 `false`） | 仅服务端 |
 
 > `service_role` 只允许出现在 `lib/supabase/admin.ts`，禁止加 `NEXT_PUBLIC_` 前缀。
 
@@ -143,6 +151,8 @@ create policy "anon read demo_item"
 ```
 
 ## 如何新增一个业务模块
+
+> 🔴 demo 模块与演示模式（`DEMO_USE_MOCK`）**仅为框架展示服务，不参与后续业务开发**：新模块禁止在 demo 上扩展、禁止 import `lib/data/demo*` 等任何 demo 文件；业务模块成型后 demo（页面 / 接口 / 数据层 / mock / 导航项）会被整体隐藏或移除。demo 仅作为结构参照。
 
 以新增「文章 article」模块为例，按 demo 的结构复制 7 步：
 

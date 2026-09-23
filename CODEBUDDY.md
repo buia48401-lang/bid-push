@@ -47,14 +47,14 @@ BidPushSystem/
 │  ├─ 001_bid_schema.sql             基线（5 表 / 索引 / 触发器 / 种子订阅）
 │  └─ 002_app_fields_migration.sql   增量（补字段 / 改类型 / 索引 / RLS）
 └─ application/                 ← Next.js 框架骨架（详见 application/README.md）
-   ├─ app/                      页面路由（/demo）+ app/api/demo Route Handler
+   ├─ app/                      页面路由（/demo，演示专用）+ app/api/demo Route Handler
    ├─ components/               layout（外壳）/ common（状态块）/ ui（shadcn 基元）
    ├─ lib/api/                  统一信封、错误码、withRouteHandler
-   ├─ lib/data/                 normalize（行归一化）+ demo（示例数据层）
+   ├─ lib/data/                 normalize（行归一化）+ demo（演示数据层，后续开发移除）
    ├─ lib/supabase/             server（anon 只读）/ admin（service_role）
    ├─ lib/validation/           通用构造器（common）+ demo
    ├─ lib/constants/            导航元数据（nav）、通用 UI 常量（ui）
-   ├─ types/                    接口类型（api）+ demo（Row/Item 双形态）
+   ├─ types/                    接口类型（api）+ demo（Row/Item 双形态，演示用）
    └─ tests/                    Vitest
 ```
 
@@ -141,6 +141,12 @@ npx vitest run -t "用例名"              # 运行单个用例
   - `components/common`（空态 / 错误态 / 标题行 / 占位块 / 分页）+ `components/layout` 外壳 + `components/ui/button`。
   - 导航元数据机制（`lib/constants/nav.ts` 数据驱动侧栏 / 面包屑 / 标题）、通用格式化与校验构造器。
 - demo 全链路示例：`/demo` 页面（Server Component 直调数据层）+ `GET /api/demo`（withRouteHandler + Zod + 分页下推），建表 SQL 见 `application/README.md`。
+- 演示模式：`DEMO_USE_MOCK=true` 时 demo 模块返回内置 25 条示例数据（`lib/data/demo.mock.ts`，内存模拟过滤/排序/分页），不连 Supabase 即可展示框架全貌；页面明示「演示数据」。
+
+> 🔴 **demo 模块与演示模式仅为框架展示服务，不参与后续业务开发**：
+> 1. 新增业务模块时禁止在 demo 模块上扩展、禁止业务代码 import demo 的任何文件（`lib/data/demo*`、`types/demo`、`lib/validation/demo`）；
+> 2. 业务模块开发成熟后，demo 相关文件（`app/demo/**`、`app/api/demo/**`、`lib/data/demo*`、`lib/validation/demo.ts`、`types/demo.ts`、`tests/demo*.test.ts`）与 `NAV_ITEMS` 中的 demo 菜单项、`.env` 中的 `DEMO_USE_MOCK` 将被**整体隐藏或移除**；
+> 3. 移除前 demo 仍作为「新增业务模块」的操作参照（见 `application/README.md` 七步指引）。
 - 框架使用手册：`application/README.md`（内置能力清单、demo 表 SQL、「如何新增一个业务模块」七步指引、分层红线）。
 
 **待办**：
